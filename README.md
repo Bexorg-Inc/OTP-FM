@@ -2,19 +2,15 @@
 
 A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials".
 
-- [OTP-FM: Multimarginal flow matching (FM) with optimal transport potentials (OTP)](#otp-fm-multimarginal-flow-matching-fm-with-optimal-transport-potentials-otp)
-  - [Overview](#overview)
-  - [Why OTP-FM?](#why-otp-fm)
-  - [Installation](#installation)
-    - [For Users (pip)](#for-users-pip)
-    - [To run experiments or develop (pixi)](#to-run-experiments-or-develop-pixi)
-  - [Quick Start](#quick-start)
-  - [Tutorials](#tutorials)
-  - [Potential Types](#potential-types)
-  - [Custom Velocity Networks](#custom-velocity-networks)
-  - [Citation](#citation)
-  - [License](#license)
-  - [Reproducing Experiments](#reproducing-experiments)
+- [Overview](#overview)
+- [Why OTP-FM?](#why-otp-fm)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Tutorials](#tutorials)
+- [Customization](#customization)
+- [Citation](#citation)
+- [License](#license)
+- [Reproducing Experiments](#reproducing-experiments)
 
 
 ## Overview
@@ -132,8 +128,9 @@ with torch.no_grad():
 - [**04_beijing_airquality.ipynb**](notebooks/04_beijing_airquality.ipynb): Beijing air quality data.
 - [**05_exact_gaussian_solutions.ipynb**](notebooks/05_exact_gaussian_solutions.ipynb): Exact solutions for dynamic OT with potentials for Gaussian marginals.
 
+## Customization
 
-## Potential Types
+### Potential Types
 
 OTP-FM supports potentials based on different statistical distances:
 
@@ -146,7 +143,20 @@ from otpfm.potentials import (
 )
 ```
 
-## Custom Velocity Networks
+### Spatiotemporal dynamics
+
+Spatial and temporal dynamics can be tuned by changing the strengths, widths, and shapes of the potentials, e.g.:
+
+```python
+tks = [0.1, 0.5, 0.7]  # Intermediate time points
+potentials = OrderedDict({
+    tks[0]: W2InfPotential(tk=tks[0], strength=500.0, lambda_fn_type='box', width=0.1),
+    tks[1]: W2InfPotential(tk=tks[1], strength=400.0, lambda_fn_type='triangle', width=0.2),
+    tks[1]: W2InfPotential(tk=tks[1], strength=100.0, lambda_fn_type='gaussian', width=0.05),
+})
+```
+
+### Custom Velocity Networks
 
 You can provide your own velocity network:
 

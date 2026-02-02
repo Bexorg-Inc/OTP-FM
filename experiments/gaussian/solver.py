@@ -1,11 +1,6 @@
 """
 Exact numerical solutions for dynamic OT with Gaussian marginal potentials.
 
-This module provides:
-- GaussianMarginalSolver: Solves OT BVP under Gaussian ansatz using shooting method
-- Distance functions: W2, KL, MMD_RBF, MMD_Poly between isotropic Gaussians
-- Gradient functions: For optimization
-
 Author(s): Raghav Kansal
 """
 
