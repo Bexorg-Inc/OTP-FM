@@ -100,7 +100,8 @@ def gaussian_dataloaders(normalized_gaussian_data):
 @pytest.fixture(scope="module")
 def simple_gaussian_model(device):
     """Create a simple OTPFM model for 1D Gaussian tests."""
-    from fm_explore.otpfm import OTPFM, IndependentPotential
+    from otpfm import OTPFM
+    from otpfm.potentials import W2InfPotential as IndependentPotential
 
     dim = 1
     tks = [0.5]
@@ -108,7 +109,7 @@ def simple_gaussian_model(device):
     potentials[0.5] = IndependentPotential(
         tk=0.5,
         strength=10.0,
-        lambda_fn_type="gaussian",
+        lambda_type="gaussian",
         width=0.2,
     )
 
@@ -185,12 +186,12 @@ class TestPotentials:
 
     def test_independent_potential(self, device):
         """Test IndependentPotential gradient computation."""
-        from fm_explore.otpfm import IndependentPotential
+        from otpfm.potentials import W2InfPotential as IndependentPotential
 
         potential = IndependentPotential(
             tk=0.5,
             strength=10.0,
-            lambda_fn_type="gaussian",
+            lambda_type="gaussian",
             width=0.2,
         )
 
@@ -208,7 +209,7 @@ class TestPotentials:
 
     def test_w2_potential(self, device):
         """Test W2Potential (exact OT) gradient computation."""
-        from fm_explore.otpfm import W2Potential
+        from otpfm.potentials import W2Potential
 
         potential = W2Potential(tk=0.5, strength=1.0)
 
@@ -223,12 +224,12 @@ class TestPotentials:
 
     def test_mmd_rbf_potential(self, device):
         """Test MMDRBFPotential gradient computation."""
-        from fm_explore.otpfm import MMDRBFPotential
+        from otpfm.potentials import MMDRBFPotential
 
         potential = MMDRBFPotential(
             tk=0.5,
             strength=10.0,
-            lambda_fn_type="gaussian",
+            lambda_type="gaussian",
             width=0.2,
             sigma=[1.0, 3.0],
         )
@@ -243,12 +244,12 @@ class TestPotentials:
 
     def test_mmd_poly_potential(self, device):
         """Test MMDPolyPotential gradient computation."""
-        from fm_explore.otpfm import MMDPolyPotential
+        from otpfm.potentials import MMDPolyPotential
 
         potential = MMDPolyPotential(
             tk=0.5,
             strength=10.0,
-            lambda_fn_type="gaussian",
+            lambda_type="gaussian",
             width=0.2,
             degree=2,
             coef0=0.1,
@@ -264,7 +265,7 @@ class TestPotentials:
 
     def test_entropic_ot_potential(self, device):
         """Test EntropicW2Potential gradient computation."""
-        from fm_explore.otpfm import EntropicW2Potential
+        from otpfm.potentials import EntropicW2Potential
 
         potential = EntropicW2Potential(
             tk=0.5,
@@ -283,12 +284,12 @@ class TestPotentials:
 
     def test_kl_potential_sliced(self, device):
         """Test KLPotential with sliced method."""
-        from fm_explore.otpfm import KLPotential
+        from otpfm.potentials import KLPotential
 
         potential = KLPotential(
             tk=0.5,
             strength=10.0,
-            lambda_fn_type="gaussian",
+            lambda_type="gaussian",
             width=0.2,
             rho_method="sliced",
             n_projections=50,
@@ -304,12 +305,12 @@ class TestPotentials:
 
     def test_kl_potential_kde(self, device):
         """Test KLPotential with KDE method."""
-        from fm_explore.otpfm import KLPotential
+        from otpfm.potentials import KLPotential
 
         potential = KLPotential(
             tk=0.5,
             strength=10.0,
-            lambda_fn_type="gaussian",
+            lambda_type="gaussian",
             width=0.2,
             rho_method="kde",
             bandwidth=1.0,
@@ -334,7 +335,7 @@ class TestLambdaFunctions:
 
     def test_gaussian_lambda(self):
         """Test GaussianLambda function."""
-        from fm_explore.otpfm import GaussianLambda
+        from otpfm.lambdas import GaussianLambda
 
         tk = 0.5
         width = 0.1
@@ -352,7 +353,7 @@ class TestLambdaFunctions:
 
     def test_triangle_lambda(self):
         """Test TriangleLambda function."""
-        from fm_explore.otpfm import TriangleLambda
+        from otpfm.lambdas import TriangleLambda
 
         tk = 0.5
         width = 0.2
@@ -370,7 +371,7 @@ class TestLambdaFunctions:
 
     def test_box_lambda(self):
         """Test BoxLambda function."""
-        from fm_explore.otpfm import BoxLambda
+        from otpfm.lambdas import BoxLambda
 
         tk = 0.5
         width = 0.1
@@ -412,7 +413,7 @@ class TestModel:
 
         # Forward pass
         simple_gaussian_model.train()
-        loss = simple_gaussian_model.forward_with_losses(batch, otp_alpha=0.5)
+        loss = simple_gaussian_model.forward_with_loss(batch, otp_alpha=0.5)
 
         assert loss.dim() == 0  # Scalar loss
         assert torch.isfinite(loss)
@@ -483,7 +484,7 @@ class TestTraining:
         self, simple_gaussian_model, gaussian_dataloaders, device, tmp_path
     ):
         """Test Trainer can be instantiated with individual parameters."""
-        from fm_explore import Trainer
+        from experiments import Trainer
 
         train_loader, val_loader = gaussian_dataloaders
 
@@ -496,7 +497,6 @@ class TestTraining:
             epochs=10,
             sampling_steps=50,
             do_otp=True,
-            otp_alpha_type="sigmoid",
             potentials=simple_gaussian_model.potentials,
             device=device,
         )
@@ -504,13 +504,12 @@ class TestTraining:
         assert trainer.epochs == 10
         assert trainer.sampling_steps == 50
         assert trainer.do_otp is True
-        assert trainer.otp_alpha_type == "sigmoid"
 
-        # Test otp_alpha function
-        # At step 0, otp_alpha should be low
-        assert trainer.otp_alpha_func(0) < 0.5
-        # At final step, otp_alpha should be high
-        assert trainer.otp_alpha_func(trainer.total_steps) > 0.5
+        # Test curriculum function
+        # At step 0, alpha should be low
+        assert trainer.curriculum(0) < 0.5
+        # At final step, alpha should be high
+        assert trainer.curriculum(trainer.total_steps) > 0.5
 
     def test_process_batch(self):
         """Test process_batch utility."""
@@ -529,7 +528,7 @@ class TestTraining:
 
     def test_training_step(self, simple_gaussian_model, gaussian_dataloaders, device, tmp_path):
         """Test a single training step."""
-        from fm_explore import Trainer
+        from experiments import Trainer
 
         train_loader, val_loader = gaussian_dataloaders
 
@@ -551,7 +550,7 @@ class TestTraining:
 
         # Forward pass
         simple_gaussian_model.train()
-        loss = simple_gaussian_model.forward_with_losses(batch, otp_alpha=0.5)
+        loss = simple_gaussian_model.forward_with_loss(batch, otp_alpha=0.5)
 
         assert torch.isfinite(loss)
 
@@ -576,7 +575,7 @@ class TestGaussianTrainer:
         tmp_path,
     ):
         """Test GaussianTrainer can be instantiated."""
-        from fm_explore.gaussian import GaussianTrainer
+        from experiments.gaussian import GaussianTrainer
 
         train_loader, val_loader = gaussian_dataloaders
 
@@ -624,22 +623,27 @@ class TestGaussianTrainer:
         tmp_path,
     ):
         """Test trajectory saving."""
-        from fm_explore.gaussian import GaussianTrainer
+        from experiments.gaussian import GaussianTrainer
 
         train_loader, val_loader = gaussian_dataloaders
 
-        x0s = torch.randn(50, 1)
+        x0s = torch.randn(50, 1, device=device)
 
-        means = normalized_gaussian_data["means"]
-        stds = normalized_gaussian_data["stds"]
-        p_mean = normalized_gaussian_data["p_mean"]
-        p_std = normalized_gaussian_data["p_std"]
+        # Keep original floats for plotting (needs CPU/numpy)
+        means_cpu = normalized_gaussian_data["means"]
+        stds_cpu = normalized_gaussian_data["stds"]
+
+        # Convert to tensors on device for transforms
+        means = torch.tensor(means_cpu, device=device)
+        stds = torch.tensor(stds_cpu, device=device)
+        p_mean = normalized_gaussian_data["p_mean"].to(device)
+        p_std = normalized_gaussian_data["p_std"].to(device)
 
         def x0s_transform_fn(x0s):
             return (x0s * stds[0] + means[0] - p_mean) / p_std
 
         def unnormalize_fn(x):
-            return (x * p_std) + p_mean
+            return (x * p_std.to(x.device)) + p_mean.to(x.device)
 
         trainer = GaussianTrainer(
             model=simple_gaussian_model,
@@ -652,13 +656,13 @@ class TestGaussianTrainer:
             x0s_for_trajectories=x0s,
             unnormalize_fn=unnormalize_fn,
             x0s_transform_fn=x0s_transform_fn,
-            plot_kwargs={"means": means, "stds": stds},
+            plot_kwargs={"means": means_cpu, "stds": stds_cpu},
             potentials=simple_gaussian_model.potentials,
             device=device,
         )
 
         # Save trajectories
-        xs_base, xs_vcorr, t_eval = trainer.save_trajectories(x0s, unnormalize_fn, epoch=0)
+        xs_vcorr, t_eval = trainer.save_trajectories(x0s, unnormalize_fn, epoch=0)
 
         assert xs_vcorr is not None
         assert t_eval is not None
@@ -675,8 +679,9 @@ class TestIntegration:
 
     def test_full_training_pipeline(self, device, tmp_path):
         """Test full training pipeline with Gaussian data."""
-        from fm_explore import Trainer
-        from fm_explore.otpfm import OTPFM, IndependentPotential
+        from experiments import Trainer
+        from otpfm import OTPFM
+        from otpfm.potentials import W2InfPotential as IndependentPotential
         from sklearn.model_selection import train_test_split
 
         # Generate data
@@ -712,7 +717,7 @@ class TestIntegration:
         tks = [0.5]
         potentials = OrderedDict()
         potentials[0.5] = IndependentPotential(
-            tk=0.5, strength=10.0, lambda_fn_type="gaussian", width=0.2
+            tk=0.5, strength=10.0, lambda_type="gaussian", width=0.2
         )
 
         model = OTPFM(
@@ -762,8 +767,9 @@ class TestIntegration:
 
     def test_multiple_potentials(self, device, tmp_path):
         """Test model with multiple intermediate potentials."""
-        from fm_explore import Trainer
-        from fm_explore.otpfm import OTPFM, IndependentPotential
+        from experiments import Trainer
+        from otpfm import OTPFM
+        from otpfm.potentials import W2InfPotential as IndependentPotential
         from sklearn.model_selection import train_test_split
 
         # Generate data with 4 marginals (2 intermediate)
@@ -800,7 +806,7 @@ class TestIntegration:
         potentials = OrderedDict()
         for tk in tks:
             potentials[tk] = IndependentPotential(
-                tk=tk, strength=10.0, lambda_fn_type="gaussian", width=0.15
+                tk=tk, strength=10.0, lambda_type="gaussian", width=0.15
             )
 
         model = OTPFM(
@@ -838,7 +844,7 @@ class TestIntegration:
         self, simple_gaussian_model, gaussian_dataloaders, device, tmp_path
     ):
         """Test model checkpoint save and load."""
-        from fm_explore import Trainer
+        from experiments import Trainer
 
         train_loader, val_loader = gaussian_dataloaders
 
@@ -880,7 +886,7 @@ class TestFlowNetArchitectures:
 
     def test_flownet_mlp(self, device):
         """Test FlowNetMLP architecture."""
-        from fm_explore.otpfm import FlowNetMLP
+        from otpfm.networks import FlowNetMLP
 
         dim = 2
         flownet = FlowNetMLP(

@@ -13,9 +13,9 @@ import torch
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
-from experiments.common import compute_fgd, compute_swd, compute_w2_distance
-from experiments.common.plotting import plot_target_vs_learned
-from experiments.common.trainer import Trainer
+from experiments.evaluation import compute_fgd, compute_swd, compute_w2_distance
+from experiments.plotting import plot_target_vs_learned
+from experiments import Trainer
 from experiments.singlecell import plotting
 
 

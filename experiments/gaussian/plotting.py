@@ -14,7 +14,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from experiments.common.plotting import (
+from experiments.plotting import (
     p_args,
     save_plot,
     scatter_args,

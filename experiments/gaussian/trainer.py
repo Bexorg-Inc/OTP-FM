@@ -14,8 +14,8 @@ import torch
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
-from experiments.common.plotting import plot_target_vs_learned
-from experiments.common.trainer import Trainer
+from experiments.plotting import plot_target_vs_learned
+from experiments import Trainer
 from experiments.gaussian import plotting
 
 
@@ -151,7 +151,7 @@ class GaussianTrainer(Trainer):
                 tks = list(self.potentials.keys())
                 potentials_list = list(self.potentials.values())
 
-                lambda_type = potentials_list[0].lambda_fn_type if potentials_list else None
+                lambda_type = potentials_list[0].lambda_type if potentials_list else None
                 lambda_widths = [p.width for p in potentials_list]
                 strengths = [p.strength for p in potentials_list]
 

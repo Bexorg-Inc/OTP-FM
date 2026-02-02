@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from .lambda_functions import BoxLambda, DeltaLambda, GaussianLambda, LambdaFunction, TriangleLambda
+from .lambdas import BoxLambda, DeltaLambda, GaussianLambda, LambdaFunction, TriangleLambda
 
 
 @dataclass
@@ -31,20 +31,20 @@ class Potential(ABC):
     Args:
         tk (float): central time.
         strength (float): strength of the potential.
-        lambda_fn_type (str): lambda function type. Choose from {"gaussian", "triangle", "box", "delta"}. Default is "gaussian".
+        lambda_type (str): lambda function type. Choose from {"gaussian", "triangle", "box", "delta"}. Default is "gaussian".
         width (float): width of the potential in time. Set to "auto" to automatically set it to (average Δt to adjacent marginals) / 2. Default is None.
     """
 
     tk: float
     strength: float
-    lambda_fn_type: str = "gaussian"
+    lambda_type: str = "gaussian"
     width: float | str | None = None
 
     # Initialized in __post_init__
     lambda_fn: LambdaFunction = field(init=False, repr=False)
 
     def __post_init__(self):
-        if self.width is None and self.lambda_fn_type != "delta":
+        if self.width is None and self.lambda_type != "delta":
             warnings.warn(
                 "Potential width is not specified and will be determined automatically."
                 "Set to 'auto' if this is intended and you don't want this warning in the future.",
@@ -52,10 +52,10 @@ class Potential(ABC):
                 stacklevel=2,
             )
             self.width = "auto"
-        elif self.lambda_fn_type == "delta":
+        elif self.lambda_type == "delta":
             self.width = 0.0
 
-        match self.lambda_fn_type:
+        match self.lambda_type:
             case "gaussian":
                 self.lambda_fn = GaussianLambda(self.tk, self.width)
             case "triangle":
@@ -65,7 +65,11 @@ class Potential(ABC):
             case "delta":
                 self.lambda_fn = DeltaLambda(self.tk, self.width)
             case _:
-                raise ValueError(f"Unknown lambda function: {self.lambda_fn_type}")
+                raise ValueError(f"Unknown lambda function: {self.lambda_type}")
+
+    def set_width(self, width: float | str):
+        self.width = width
+        self.lambda_fn.set_width(width)
 
     @abstractmethod
     def grad_gk(self, x_true: Tensor, X_tk: Tensor) -> Tensor:

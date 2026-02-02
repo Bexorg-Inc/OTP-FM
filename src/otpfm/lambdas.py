@@ -16,14 +16,21 @@ class LambdaFunction(ABC):
         width (float): half-width of the function in time.
     """
 
-    def __init__(self, tk: float, width: float):
+    def __init__(self, tk: float, width: float | str | None):
         self.tk = tk
         self.width = width
-        self._precompute_special_values()
+
+        if width != "auto":
+            self._precompute_special_values()
 
     def _precompute_special_values(self):
         """Precompute integrated and double_integrated at t=1 for efficiency."""
         pass
+
+    def set_width(self, width: float | str):
+        self.width = width
+        if width != "auto":
+            self._precompute_special_values()
 
     @abstractmethod
     def __call__(self, t: Tensor) -> Tensor:

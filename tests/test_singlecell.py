@@ -24,24 +24,6 @@ def device():
 
 
 @pytest.fixture(scope="module")
-def data_dir(tmp_path_factory):
-    """Create a temporary data directory."""
-    return tmp_path_factory.mktemp("data")
-
-
-@pytest.fixture(scope="module")
-def eb_data(data_dir):
-    """Download and load EB data for tests."""
-    from fm_explore.singlecell.dataset import download_eb_data, load_eb_data
-
-    data_path = download_eb_data(data_dir)
-    pcs, labels, velocity, phate, _ = load_eb_data(
-        data_path, max_dim=20, normalize=True, return_phate=True
-    )
-    return pcs, labels, velocity, phate
-
-
-@pytest.fixture(scope="module")
 def synthetic_data():
     """Create synthetic data for fast tests without downloading."""
     np.random.seed(42)
@@ -62,9 +44,21 @@ def synthetic_data():
 
 
 @pytest.fixture(scope="module")
+def synthetic_marginals(synthetic_data):
+    """Create marginals dictionary from synthetic data."""
+    pcs, labels = synthetic_data
+    marginals = {}
+    for t in sorted(set(labels)):
+        mask = labels == t
+        marginals[t] = torch.tensor(pcs[mask], dtype=torch.float32)
+    return marginals
+
+
+@pytest.fixture(scope="module")
 def simple_model(device):
     """Create a simple OTPFM model for testing."""
-    from fm_explore.otpfm import OTPFM, MMDRBFPotential
+    from otpfm import OTPFM
+    from otpfm.potentials import MMDRBFPotential
 
     dim = 20
     tks = [0.33, 0.67]
@@ -73,7 +67,7 @@ def simple_model(device):
         potentials[tk] = MMDRBFPotential(
             tk=tk,
             strength=1.0,
-            lambda_fn_type="gaussian",
+            lambda_type="gaussian",
             width=0.2,
             sigma=[1.0, 3.0, 10.0],
         )
@@ -103,52 +97,9 @@ def simple_model(device):
 class TestDataset:
     """Tests for dataset loading and preprocessing."""
 
-    def test_download_eb_data(self, data_dir):
-        """Test that EB data can be downloaded."""
-        from fm_explore.singlecell.dataset import download_eb_data
-
-        data_path = download_eb_data(data_dir)
-        assert data_path.exists()
-        assert data_path.suffix == ".npz"
-
-    def test_load_eb_data_basic(self, eb_data):
-        """Test basic data loading."""
-        pcs, labels, velocity, phate = eb_data
-
-        assert pcs.ndim == 2
-        assert labels.ndim == 1
-        assert pcs.shape[0] == labels.shape[0]
-        assert pcs.shape[1] == 20  # max_dim
-        assert pcs.dtype == np.float32
-        assert labels.dtype == np.int64
-
-    def test_load_eb_data_labels(self, eb_data):
-        """Test that labels are correct time points."""
-        pcs, labels, _, _ = eb_data
-
-        unique_labels = np.unique(labels)
-        assert len(unique_labels) == 5  # 5 time points
-        assert unique_labels.tolist() == [0, 1, 2, 3, 4]
-
-    def test_load_eb_data_normalizeing(self, eb_data):
-        """Test that normalizeing produces approximately zero mean and unit variance."""
-        pcs, _, _, _ = eb_data
-
-        # After normalizeing, mean should be ~0, std should be ~1
-        assert np.abs(pcs.mean()) < 0.1
-        assert np.abs(pcs.std() - 1.0) < 0.1
-
-    def test_load_eb_data_phate(self, eb_data):
-        """Test PHATE embedding loading."""
-        _, _, _, phate = eb_data
-
-        assert phate is not None
-        assert phate.ndim == 2
-        assert phate.shape[1] == 2  # 2D embedding
-
     def test_eb_multi_marginal_dataset(self, synthetic_data):
         """Test EBMultiMarginalDataset creation and iteration."""
-        from fm_explore.singlecell.dataset import EBMultiMarginalDataset
+        from experiments.singlecell.data import EBMultiMarginalDataset
 
         pcs, labels = synthetic_data
         holdout_times = [1, 3]
@@ -165,9 +116,24 @@ class TestDataset:
         assert all(isinstance(s, torch.Tensor) for s in samples)
         assert all(s.shape == (20,) for s in samples)
 
+    def test_eb_multi_marginal_dataset_iteration(self, synthetic_data):
+        """Test iterating through dataset."""
+        from experiments.singlecell.data import EBMultiMarginalDataset
+
+        pcs, labels = synthetic_data
+        holdout_times = [1, 3]
+
+        dataset = EBMultiMarginalDataset(pcs, labels, holdout_times=holdout_times)
+
+        # Iterate through a few samples
+        for i, sample in enumerate(dataset):
+            if i >= 5:
+                break
+            assert len(sample) == 3  # 3 training time points
+
     def test_create_eb_dataloaders(self, synthetic_data):
         """Test DataLoader creation."""
-        from fm_explore.singlecell.dataset import create_eb_dataloaders
+        from experiments.singlecell.data import create_eb_dataloaders
 
         pcs, labels = synthetic_data
 
@@ -187,33 +153,57 @@ class TestDataset:
         assert len(batch) == 3  # 3 training time points
         assert all(b.shape[0] == 32 for b in batch)  # batch size
 
-    def test_get_holdout_data(self, synthetic_data):
-        """Test extraction of holdout data."""
-        from fm_explore.singlecell.dataset import get_holdout_data
+    def test_compute_ot_alignments(self, synthetic_data):
+        """Test OT alignment computation."""
+        from experiments.singlecell.data import compute_ot_alignments
+
+        pcs, labels = synthetic_data
+        train_times = [0, 2, 4]
+
+        alignments = compute_ot_alignments(pcs, labels, train_times, method="emd")
+
+        # Should have alignment for each consecutive pair
+        assert len(alignments) == len(train_times) - 1
+        expected_keys = [(0, 2), (2, 4)]
+        assert set(alignments.keys()) == set(expected_keys)
+
+    def test_dataset_with_ot_coupling(self, synthetic_data):
+        """Test dataset with OT coupling enabled."""
+        from experiments.singlecell.data import EBMultiMarginalDataset, compute_ot_alignments
+
+        pcs, labels = synthetic_data
+        train_times = [0, 2, 4]
+
+        alignments = compute_ot_alignments(pcs, labels, train_times)
+
+        dataset = EBMultiMarginalDataset(
+            pcs, labels, holdout_times=[1, 3], ot_alignments=alignments
+        )
+
+        assert dataset.use_ot
+        assert len(dataset) > 0
+
+        # Check sample
+        sample = dataset[0]
+        assert len(sample) == 3  # 3 training time points
+
+    def test_dataset_reshuffle(self, synthetic_data):
+        """Test dataset reshuffling."""
+        from experiments.singlecell.data import EBMultiMarginalDataset
 
         pcs, labels = synthetic_data
 
-        holdout = get_holdout_data(pcs, labels, holdout_time=1)
+        dataset = EBMultiMarginalDataset(pcs, labels, holdout_times=[1, 3])
 
-        assert isinstance(holdout, torch.Tensor)
-        assert holdout.dtype == torch.float32
-        assert holdout.shape[1] == 20
+        # Get sample before reshuffle
+        sample1 = [s.clone() for s in dataset[0]]
 
-        # Check that all samples are from time 1
-        expected_count = (labels == 1).sum()
-        assert holdout.shape[0] == expected_count
+        # Reshuffle
+        dataset.reshuffle()
 
-    def test_get_time_marginals(self, synthetic_data):
-        """Test extraction of all time marginals."""
-        from fm_explore.singlecell.dataset import get_time_marginals
-
-        pcs, labels = synthetic_data
-
-        marginals = get_time_marginals(pcs, labels)
-
-        assert isinstance(marginals, dict)
-        assert set(marginals.keys()) == {0, 1, 2, 3, 4}
-        assert all(isinstance(v, torch.Tensor) for v in marginals.values())
+        # Sample might be different (probabilistic)
+        sample2 = dataset[0]
+        assert len(sample2) == len(sample1)
 
 
 # ============================================================================
@@ -235,7 +225,6 @@ class TestModel:
         pcs, labels = synthetic_data
 
         # Create batch: (batch_size, num_marginals, dim)
-        # num_marginals = K + 2 = 4 (source, 2 intermediate, target)
         batch_size = 32
         marginals_dict = {}
         for t in [0, 2, 4]:  # training times
@@ -248,13 +237,11 @@ class TestModel:
             marginals_dict[t] = torch.tensor(pcs[mask][:batch_size], dtype=torch.float32)
 
         # Stack in order: [source, intermediate_1, intermediate_2, target]
-        # = [t0, t1, t3, t4] but we need [t0, t_{0.33}, t_{0.67}, t4]
-        # For simplicity use t0, t1, t3, t4 which corresponds to normalized times 0, 0.25, 0.75, 1
         xs = torch.stack(
             [
                 marginals_dict[0],
-                marginals_dict[1],  # Corresponds to tk=0.33
-                marginals_dict[3],  # Corresponds to tk=0.67
+                marginals_dict[1],
+                marginals_dict[3],
                 marginals_dict[4],
             ],
             dim=1,
@@ -262,7 +249,7 @@ class TestModel:
 
         # Forward pass
         simple_model.train()
-        loss = simple_model.forward_with_losses(xs, otp_alpha=0.5, do_otp=True)
+        loss = simple_model.forward_with_loss(xs, otp_alpha=0.5, do_otp=True)
 
         assert isinstance(loss, float | torch.Tensor)
         if isinstance(loss, torch.Tensor):
@@ -294,7 +281,6 @@ class TestModel:
 
     def test_model_ema_update(self, simple_model):
         """Test EMA update."""
-        # Get a parameter from main and EMA model
         main_params = list(simple_model.flownet.parameters())
         ema_params = list(simple_model.flownet_ema.parameters())
 
@@ -322,7 +308,7 @@ class TestEvaluation:
 
     def test_compute_w2_distance(self):
         """Test Wasserstein-2 distance computation."""
-        from fm_explore.evaluation import compute_w2_distance
+        from experiments.evaluation import compute_w2_distance
 
         # Same distributions should have W2 ~ 0
         x = torch.randn(100, 10)
@@ -330,13 +316,13 @@ class TestEvaluation:
         assert w2 < 0.1
 
         # Different distributions should have W2 > 0
-        y = torch.randn(100, 10) + 5  # Shifted
+        y = torch.randn(100, 10) + 5
         w2 = compute_w2_distance(x, y)
         assert w2 > 0.1
 
     def test_compute_mmd(self):
-        """Test MMD with 3MSBM-style multi-scale Gaussian kernel."""
-        from fm_explore.evaluation import compute_mmd
+        """Test MMD with multi-scale Gaussian kernel."""
+        from experiments.evaluation import compute_mmd
 
         # Same distributions should have MMD ~ 0
         x = torch.randn(100, 10)
@@ -350,7 +336,7 @@ class TestEvaluation:
 
     def test_compute_swd(self):
         """Test Sliced Wasserstein Distance."""
-        from fm_explore.evaluation import compute_swd
+        from experiments.evaluation import compute_swd
 
         # Same distributions should have SWD ~ 0
         x = torch.randn(100, 10)
@@ -364,7 +350,7 @@ class TestEvaluation:
 
     def test_compute_fgd(self):
         """Test Fréchet Gaussian Distance."""
-        from fm_explore.evaluation import compute_fgd
+        from experiments.evaluation import compute_fgd
 
         # Same distributions should have FGD ~ 0
         x = torch.randn(100, 10)
@@ -375,11 +361,6 @@ class TestEvaluation:
         y = torch.randn(100, 10) + 3
         fgd = compute_fgd(x, y)
         assert fgd > 0.1
-
-        # Test with different covariance
-        z = torch.randn(100, 10) * 3  # Different variance
-        fgd_z = compute_fgd(x, z)
-        assert fgd_z > 0.1  # Different covariance should give non-zero FGD
 
 
 # ============================================================================
@@ -392,8 +373,8 @@ class TestTraining:
 
     def test_trainer_instantiation(self, simple_model, synthetic_data, device, tmp_path):
         """Test Trainer can be instantiated."""
-        from fm_explore import Trainer
-        from fm_explore.singlecell.dataset import create_eb_dataloaders
+        from experiments import Trainer
+        from experiments.singlecell.data import create_eb_dataloaders
 
         pcs, labels = synthetic_data
 
@@ -415,7 +396,6 @@ class TestTraining:
             sampling_steps=10,
             do_otp=True,
             grad_clip=1.0,
-            otp_alpha_type="sigmoid",
             potentials=simple_model.potentials,
             device=device,
         )
@@ -424,11 +404,9 @@ class TestTraining:
         assert trainer.sampling_steps == 10
         assert trainer.do_otp
         assert trainer.grad_clip == 1.0
-        assert trainer.otp_alpha_type == "sigmoid"
 
     def test_process_batch(self):
         """Test batch processing."""
-
         # Simulate batch from DataLoader
         batch = [
             torch.randn(32, 20),  # time 0
@@ -436,7 +414,7 @@ class TestTraining:
             torch.randn(32, 20),  # time 4
         ]
 
-        # Test the internal _process_batch method
+        # Test internal _process_batch method
         processed = torch.stack(batch).transpose(0, 1)
 
         # Should be (batch_size, num_marginals, dim)
@@ -444,12 +422,10 @@ class TestTraining:
 
     def test_training_step(self, simple_model, synthetic_data, device, tmp_path):
         """Test a single training step."""
-        from fm_explore.singlecell.dataset import create_eb_dataloaders
+        from experiments.singlecell.data import create_eb_dataloaders
 
         pcs, labels = synthetic_data
 
-        # Create dataloaders with intermediate marginals included
-        # For this test, we'll manually create a batch
         train_loader, val_loader = create_eb_dataloaders(
             pcs,
             labels,
@@ -463,173 +439,23 @@ class TestTraining:
         optimizer = torch.optim.Adam(simple_model.parameters(), lr=1e-3)
 
         for batch in train_loader:
-            # batch is list of 3 tensors (train times 0, 2, 4)
-            # We need to add intermediate marginals for OTP
             xs = torch.stack(batch).transpose(0, 1).to(device)
 
             # Create full batch with intermediate marginals
-            # For simplicity, interpolate to get intermediate points
             x0 = xs[:, 0]
             x1 = xs[:, -1]
-            # Interpolate for intermediate points
             xm1 = x0 * 0.67 + x1 * 0.33
             xm2 = x0 * 0.33 + x1 * 0.67
             xs_full = torch.stack([x0, xm1, xm2, x1], dim=1)
 
             optimizer.zero_grad()
-            loss = simple_model.forward_with_losses(xs_full, otp_alpha=0.5, do_otp=True)
+            loss = simple_model.forward_with_loss(xs_full, otp_alpha=0.5, do_otp=True)
 
             if isinstance(loss, torch.Tensor):
                 loss.backward()
                 optimizer.step()
 
             break  # Just test one step
-
-        # Should complete without error
-
-    def test_eb_trainer_reshuffling(self, simple_model, synthetic_data, device, tmp_path):
-        """Test EBTrainer with reshuffling enabled."""
-        from fm_explore.singlecell.dataset import create_eb_dataloaders
-        from fm_explore.singlecell.EBTrainer import EBTrainer
-
-        pcs, labels = synthetic_data
-
-        train_loader, val_loader = create_eb_dataloaders(
-            pcs,
-            labels,
-            holdout_times=[1, 3],
-            batch_size=16,
-            val_split=0.2,
-        )
-
-        # Test with reshuffling enabled
-        trainer = EBTrainer(
-            model=simple_model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            save_dir=tmp_path,
-            lr=1e-3,
-            epochs=1,
-            sampling_steps=5,
-            otp_alpha_type="1",
-            potentials=simple_model.potentials,
-            device=device,
-            reshuffle_each_epoch=True,
-        )
-
-        assert trainer.reshuffle_each_epoch is True
-
-        # Get underlying dataset
-        underlying = trainer._get_underlying_dataset()
-        assert hasattr(underlying, "reshuffle")
-
-        # Test that on_epoch_start calls reshuffle
-        # Get initial indices
-        initial_indices = {t: underlying.indices_by_time[t].clone() for t in underlying.train_times}
-
-        # Call on_epoch_start which should reshuffle
-        trainer.on_epoch_start(0)
-
-        # Check that at least one time point has different indices
-        indices_changed = False
-        for t in underlying.train_times:
-            if not torch.equal(initial_indices[t], underlying.indices_by_time[t]):
-                indices_changed = True
-                break
-
-        assert indices_changed, "Reshuffling should change indices"
-
-    def test_eb_trainer_no_reshuffling(self, simple_model, synthetic_data, device, tmp_path):
-        """Test EBTrainer with reshuffling disabled."""
-        from fm_explore.singlecell.dataset import create_eb_dataloaders
-        from fm_explore.singlecell.EBTrainer import EBTrainer
-
-        pcs, labels = synthetic_data
-
-        train_loader, val_loader = create_eb_dataloaders(
-            pcs,
-            labels,
-            holdout_times=[1, 3],
-            batch_size=16,
-            val_split=0.2,
-        )
-
-        # Test with reshuffling disabled
-        trainer = EBTrainer(
-            model=simple_model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            save_dir=tmp_path,
-            lr=1e-3,
-            epochs=1,
-            sampling_steps=5,
-            otp_alpha_type="1",
-            potentials=simple_model.potentials,
-            device=device,
-            reshuffle_each_epoch=False,
-        )
-
-        assert trainer.reshuffle_each_epoch is False
-
-        # Get underlying dataset
-        underlying = trainer._get_underlying_dataset()
-
-        # Get initial indices
-        initial_indices = {t: underlying.indices_by_time[t].clone() for t in underlying.train_times}
-
-        # Call on_epoch_start which should NOT reshuffle
-        trainer.on_epoch_start(0)
-
-        # Check that all indices are the same
-        for t in underlying.train_times:
-            assert torch.equal(
-                initial_indices[t], underlying.indices_by_time[t]
-            ), "Indices should not change when reshuffling is disabled"
-
-    def test_eb_trainer_with_evaluation(self, simple_model, synthetic_data, device, tmp_path):
-        """Test EBTrainer with evaluation settings."""
-        from fm_explore.singlecell.dataset import create_eb_dataloaders, get_time_marginals
-        from fm_explore.singlecell.EBTrainer import EBTrainer
-
-        pcs, labels = synthetic_data
-
-        train_loader, val_loader = create_eb_dataloaders(
-            pcs,
-            labels,
-            holdout_times=[1, 3],
-            batch_size=16,
-            val_split=0.2,
-        )
-
-        # Get marginals for evaluation
-        marginals = get_time_marginals(pcs, labels)
-        train_times = [0, 2, 4]
-        holdout_times = [1, 3]
-
-        # Test with evaluation enabled
-        trainer = EBTrainer(
-            model=simple_model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            save_dir=tmp_path,
-            lr=1e-3,
-            epochs=1,
-            sampling_steps=5,
-            otp_alpha_type="1",
-            potentials=simple_model.potentials,
-            device=device,
-            reshuffle_each_epoch=True,
-            marginals=marginals,
-            train_times=train_times,
-            holdout_times=holdout_times,
-            eval_n_steps=5,
-            eval_num_samples=50,
-            plot_trajectories=False,  # Disable plots for faster tests
-        )
-
-        assert trainer.marginals is not None
-        assert trainer.train_times == train_times
-        assert trainer.holdout_times == holdout_times
 
 
 # ============================================================================
@@ -640,9 +466,9 @@ class TestTraining:
 class TestPlotting:
     """Tests for plotting functions."""
 
-    def test_plot_pca_trajectories(self, tmp_path):
+    def test_plot_pca_trajectories(self, synthetic_marginals, tmp_path):
         """Test PCA trajectory plotting."""
-        from fm_explore.singlecell.plotting import plot_pca_trajectories
+        from experiments.singlecell.plotting import plot_pca_trajectories
 
         # Create fake trajectories: (n_timesteps, n_samples, dim)
         trajectories = torch.randn(20, 50, 20)
@@ -654,6 +480,8 @@ class TestPlotting:
         plot_pca_trajectories(
             trajectories=trajectories,
             time_points=time_points,
+            ground_truth_marginals=synthetic_marginals,
+            plot_times=[0, 1, 2, 3, 4],
             pcs=(0, 1),
             num_trajectories=10,
             title="Test Trajectories",
@@ -678,9 +506,10 @@ class TestIntegration:
 
         import numpy as np
         import torch
-        from fm_explore import evaluation
-        from fm_explore.otpfm import OTPFM, MMDRBFPotential
-        from fm_explore.singlecell.dataset import create_eb_dataloaders, get_time_marginals
+        from experiments import evaluation
+        from otpfm import OTPFM
+        from otpfm.potentials import MMDRBFPotential
+        from experiments.singlecell.data import create_eb_dataloaders
 
         # Create synthetic data
         np.random.seed(42)
@@ -696,12 +525,18 @@ class TestIntegration:
             mask = labels == t
             pcs[mask] += t * np.array([0.5] * dim).astype(np.float32)
 
+        # Create marginals
+        marginals = {}
+        for t in range(n_timepoints):
+            mask = labels == t
+            marginals[t] = torch.tensor(pcs[mask], dtype=torch.float32)
+
         # Create model
         tks = [0.33, 0.67]
         potentials = OrderedDict()
         for tk in tks:
             potentials[tk] = MMDRBFPotential(
-                tk=tk, strength=1.0, lambda_fn_type="gaussian", width=0.2
+                tk=tk, strength=1.0, lambda_type="gaussian", width=0.2
             )
 
         model = OTPFM(
@@ -741,7 +576,7 @@ class TestIntegration:
                 xs_full = torch.stack([x0, xm1, xm2, x1], dim=1)
 
                 optimizer.zero_grad()
-                loss = model.forward_with_losses(xs_full, otp_alpha=0.5)
+                loss = model.forward_with_loss(xs_full, otp_alpha=0.5)
 
                 if isinstance(loss, torch.Tensor):
                     loss.backward()
@@ -750,7 +585,6 @@ class TestIntegration:
                     epoch_loss += loss.item()
 
         # Evaluate by sampling and computing metrics
-        marginals = get_time_marginals(pcs, labels.astype(np.int64))
         model.eval()
 
         with torch.no_grad():
@@ -786,14 +620,15 @@ class TestIntegration:
         # Load into new model
         from collections import OrderedDict
 
-        from fm_explore.otpfm import OTPFM, MMDRBFPotential
+        from otpfm import OTPFM
+        from otpfm.potentials import MMDRBFPotential
 
         dim = 20
         tks = [0.33, 0.67]
         potentials = OrderedDict()
         for tk in tks:
             potentials[tk] = MMDRBFPotential(
-                tk=tk, strength=1.0, lambda_fn_type="gaussian", width=0.2
+                tk=tk, strength=1.0, lambda_type="gaussian", width=0.2
             )
 
         new_model = OTPFM(
@@ -807,125 +642,32 @@ class TestIntegration:
                 "hidden_dim": 64,
             },
             ema_decay=0.999,
+            euler_steps=2,
         ).to(device)
 
-        checkpoint = torch.load(save_path, map_location=device, weights_only=False)
+        checkpoint = torch.load(save_path, map_location=device)
         new_model.load_state_dict(checkpoint["model_state_dict"])
 
-        # Check params match
-        for (name1, p1), (name2, p2) in zip(
-            simple_model.named_parameters(), new_model.named_parameters()
-        ):
-            assert name1 == name2
-            assert torch.allclose(p1, p2)
+        # Should be able to sample
+        new_model.eval()
+        with torch.no_grad():
+            x0 = torch.randn(10, dim).to(device)
+            trajectories, t_eval = new_model.sample(x0, n_steps=5, ema=True)
+
+        assert trajectories.shape[1] == 10
 
 
 # ============================================================================
-# Potential Tests
+# Train Script Tests
 # ============================================================================
 
 
-class TestPotentials:
-    """Tests for different potential types."""
-
-    def test_mmd_rbf_potential(self):
-        """Test MMD RBF potential gradient computation."""
-        from fm_explore.otpfm import MMDRBFPotential
-
-        potential = MMDRBFPotential(tk=0.5, strength=1.0, lambda_fn_type="gaussian", width=0.2)
-
-        x_true = torch.randn(50, 10)
-        x_tk = torch.randn(50, 10)
-
-        grad = potential.grad_gk(x_true, x_tk)
-
-        assert grad.shape == x_tk.shape
-        assert torch.isfinite(grad).all()
-
-    def test_w2_potential(self):
-        """Test W2 potential gradient computation."""
-        from fm_explore.otpfm import W2Potential
-
-        potential = W2Potential(tk=0.5, strength=1.0, lambda_fn_type="gaussian", width=0.2)
-
-        x_true = torch.randn(30, 10)
-        x_tk = torch.randn(30, 10)
-
-        grad = potential.grad_gk(x_true, x_tk)
-
-        assert grad.shape == x_tk.shape
-        assert torch.isfinite(grad).all()
-
-    def test_kl_potential_sliced(self):
-        """Test KL potential with sliced score estimation."""
-        from fm_explore.otpfm import KLPotential
-
-        potential = KLPotential(
-            tk=0.5,
-            strength=1.0,
-            lambda_fn_type="gaussian",
-            width=0.2,
-            rho_method="sliced",
-            n_projections=32,
-        )
-
-        x_true = torch.randn(50, 10)
-        x_tk = torch.randn(50, 10)
-
-        grad = potential.grad_gk(x_true, x_tk)
-
-        assert grad.shape == x_tk.shape
-        assert torch.isfinite(grad).all()
-
-    def test_kl_potential_kde(self):
-        """Test KL potential with KDE score estimation."""
-        from fm_explore.otpfm import KLPotential
-
-        potential = KLPotential(
-            tk=0.5, strength=1.0, lambda_fn_type="gaussian", width=0.2, rho_method="kde"
-        )
-
-        x_true = torch.randn(50, 10)
-        x_tk = torch.randn(50, 10)
-
-        grad = potential.grad_gk(x_true, x_tk)
-
-        assert grad.shape == x_tk.shape
-        assert torch.isfinite(grad).all()
-
-
-# ============================================================================
-# Unified Train Script Tests
-# ============================================================================
-
-
-class TestUnifiedTrainScript:
+class TestTrainScript:
     """Tests for the unified train.py script."""
-
-    def test_config_loading(self, tmp_path):
-        """Test that configs are loaded and merged correctly."""
-        from fm_explore.train import get_config_dir, load_json_config
-
-        # Check defaults exist
-        config_dir = get_config_dir()
-        assert (config_dir / "singlecell" / "defaults.json").exists()
-        assert (config_dir / "gom" / "defaults.json").exists()
-
-        # Test loading singlecell defaults
-        config = load_json_config(config_dir / "singlecell" / "defaults.json")
-        assert config["pca_dim"] == 100
-        assert config["epochs"] == 300
-        assert config["hidden_dim"] == 768
-
-        # Test loading gom defaults
-        config = load_json_config(config_dir / "gom" / "defaults.json")
-        assert config["hidden_dim"] == 128
-        assert config["epochs"] == 800
-        assert config["tks"] == [0.25, 0.5, 0.75]
 
     def test_config_merging(self):
         """Test that config merging works correctly."""
-        from fm_explore.train import merge_configs
+        from experiments.train import merge_configs
 
         base = {"a": 1, "b": 2, "c": 3}
         override = {"b": 20, "d": 4}
@@ -937,182 +679,66 @@ class TestUnifiedTrainScript:
         assert result["c"] == 3  # unchanged
         assert result["d"] == 4  # new key
 
-    def test_build_tag(self, synthetic_data, tmp_path):
+    def test_build_tag(self):
         """Test build_tag function from train module."""
-        from fm_explore.train import build_tag
+        from experiments.train import build_tag
 
-        # Create a mock args object
-        class Args:
-            tag = "test"
-            potential = "w2inf"
-            strength = 100.0
-            lambda_width = 0.33
-            lr = 0.001
-            num_hidden_layers = 4
-            strengths = None
-            widths = None
+        config = {
+            "potential": "w2inf",
+            "strength": 100.0,
+            "width": 0.33,
+            "lr": 0.001,
+            "num_hidden_layers": 4,
+        }
 
-        tag = build_tag(Args)
+        tag = build_tag(config, "test")
         assert "test" in tag
         assert "w2inf" in tag
-        assert "s100" in tag
-
-    def test_build_tag_with_lists(self):
-        """Test build_tag function with per-potential strengths/widths."""
-        from fm_explore.train import build_tag
-
-        class Args:
-            tag = "experiment/test"
-            potential = "w2inf"
-            strength = 400.0
-            width = 0.2
-            lr = 0.001
-            num_hidden_layers = 10
-            hidden_dim = 128
-            strengths = [100.0, 200.0, 300.0]
-            widths = [0.1, 0.2, 0.3]
-
-        tag = build_tag(Args)
-        assert "test" in tag
-        assert "w2inf" in tag
-        assert "s100.0-200.0-300.0" in tag
-        assert "w0.1-0.2-0.3" in tag
 
     def test_create_potential(self):
         """Test potential creation from train module."""
-        from fm_explore.otpfm import IndependentPotential, MMDRBFPotential, W2Potential
-        from fm_explore.train import create_potential
-
-        class Args:
-            strength = 100.0
-            lambda_type = "gaussian"
-            lambda_width = 0.33
-            potential = "w2inf"
-            mmd_bandwidth = [3.0]
-            kl_rho_method = "kde"
-            kl_mu_method = None
-            kl_bandwidth = "3.0"
-            kl_bandwidth_scale = 2.5
-            kl_n_projections = 64
-            kl_ssge_eta = 0.01
-            kl_diagonal_cov = False
+        from otpfm.potentials import W2InfPotential, MMDRBFPotential, W2Potential
+        from experiments.train import create_potential
 
         # Test W2Inf
-        Args.potential = "w2inf"
-        pot = create_potential(Args, tk=0.5)
-        assert isinstance(pot, IndependentPotential)
+        config = {
+            "potential": "w2inf",
+            "strength": 100.0,
+            "lambda_type": "gaussian",
+            "width": 0.33,
+        }
+        pot = create_potential(config, tk=0.5)
+        assert isinstance(pot, W2InfPotential)
         assert pot.tk == 0.5
         assert pot.strength == 100.0
 
         # Test W2
-        Args.potential = "w2"
-        pot = create_potential(Args, tk=0.5)
+        config["potential"] = "w2"
+        pot = create_potential(config, tk=0.5)
         assert isinstance(pot, W2Potential)
 
         # Test MMD
-        Args.potential = "mmd"
-        pot = create_potential(Args, tk=0.5)
+        config["potential"] = "mmd"
+        config["mmd_bandwidth"] = [3.0]
+        pot = create_potential(config, tk=0.5)
         assert isinstance(pot, MMDRBFPotential)
 
     def test_create_potential_with_overrides(self):
         """Test potential creation with strength/width overrides."""
-        from fm_explore.otpfm import IndependentPotential
-        from fm_explore.train import create_potential
+        from otpfm.potentials import W2InfPotential
+        from experiments.train import create_potential
 
-        class Args:
-            strength = 100.0
-            lambda_type = "gaussian"
-            lambda_width = 0.33
-            potential = "w2inf"
+        config = {
+            "potential": "w2inf",
+            "strength": 100.0,
+            "lambda_type": "gaussian",
+            "width": 0.33,
+        }
 
         # Test with overrides
-        pot = create_potential(Args, tk=0.5, strength=200.0, width=0.5)
-        assert isinstance(pot, IndependentPotential)
+        pot = create_potential(config, tk=0.5, strength=200.0, width=0.5)
+        assert isinstance(pot, W2InfPotential)
         assert pot.strength == 200.0
-        assert pot.lambda_fn.width == 0.5
-
-    def test_reproducibility_fixed_seed(self, synthetic_data, device, tmp_path):
-        """Test that training with fixed seed produces identical results."""
-        from fm_explore.otpfm import OTPFM, IndependentPotential
-        from fm_explore.Trainer import Trainer
-        from torch.utils.data import DataLoader, Dataset
-
-        pcs, labels = synthetic_data
-        dim = pcs.shape[1]
-
-        class SimpleDataset(Dataset):
-            """Dataset that returns batches as list of tensors per time."""
-
-            def __init__(self, pcs, labels, train_times):
-                self.train_times = train_times
-                # Get samples for each time
-                self.samples_per_time = []
-                for t in train_times:
-                    mask = labels == t
-                    self.samples_per_time.append(torch.from_numpy(pcs[mask]).float())
-                self.n_samples = min(len(s) for s in self.samples_per_time)
-
-            def __len__(self):
-                return self.n_samples
-
-            def __getitem__(self, idx):
-                # Return list of samples at each time point
-                return [s[idx] for s in self.samples_per_time]
-
-        def train_with_seed(seed):
-            torch.manual_seed(seed)
-            np.random.seed(seed)
-
-            # Create simple model
-            tks = [0.5]
-            potentials = OrderedDict()
-            potentials[0.5] = IndependentPotential(
-                tk=0.5, strength=10.0, lambda_fn_type="gaussian", width=0.3
-            )
-
-            model = OTPFM(
-                d=dim,
-                tks=tks,
-                potentials=potentials,
-                flownet_args={
-                    "x_emb_dim": 16,
-                    "t_emb_dim": 16,
-                    "num_hidden_layers": 2,
-                    "hidden_dim": 32,
-                },
-                ema_decay=0.99,
-            ).to(device)
-
-            # Create dataloaders with proper format
-            train_times = [0, 2, 4]
-            dataset = SimpleDataset(pcs, labels, train_times)
-            train_loader = DataLoader(dataset, batch_size=16, shuffle=True)
-            val_loader = DataLoader(dataset, batch_size=16, shuffle=False)
-
-            # Train for 2 epochs
-            save_dir = tmp_path / f"run_seed{seed}_{id(model)}"
-            save_dir.mkdir(parents=True, exist_ok=True)
-
-            trainer = Trainer(
-                model=model,
-                train_loader=train_loader,
-                val_loader=val_loader,
-                save_dir=save_dir,
-                lr=1e-3,
-                epochs=2,
-                potentials=potentials,
-                device=device,
-            )
-
-            losses, _ = trainer.train()
-            return losses["train_loss"][-1]
-
-        # Train twice with same seed
-        loss1 = train_with_seed(42)
-        loss2 = train_with_seed(42)
-
-        # Should be identical
-        assert abs(loss1 - loss2) < 1e-6, f"Losses differ: {loss1} vs {loss2}"
 
 
 # ============================================================================

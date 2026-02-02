@@ -72,8 +72,8 @@ xs = torch.randn(64, 4, 2)
 # Define K = 2 intermediate marginal potentials
 tks = [0.33, 0.67]  # Intermediate time points
 potentials = OrderedDict({
-    tks[0]: W2InfPotential(tk=tks[0], strength=100.0, lambda_fn_type='gaussian', width=0.2),
-    tks[1]: W2InfPotential(tk=tks[1], strength=100.0, lambda_fn_type='gaussian', width=0.2),
+    tks[0]: W2InfPotential(tk=tks[0], strength=100.0, lambda_type='gaussian', width=0.2),
+    tks[1]: W2InfPotential(tk=tks[1], strength=100.0, lambda_type='gaussian', width=0.2),
 })
 
 # Create model
@@ -102,7 +102,7 @@ for epoch in range(n_epochs):
         otp_alpha = otp_alpha_schedule(iterations)
 
         # Forward pass
-        loss = model.forward_with_losses(xs, otp_alpha=otp_alpha)
+        loss = model.forward_with_loss(xs, otp_alpha=otp_alpha)
 
         # Backward pass
         optimizer.zero_grad()
@@ -150,9 +150,9 @@ Spatial and temporal dynamics can be tuned by changing the strengths, widths, an
 ```python
 tks = [0.1, 0.5, 0.7]  # Intermediate time points
 potentials = OrderedDict({
-    tks[0]: W2InfPotential(tk=tks[0], strength=500.0, lambda_fn_type='box', width=0.1),
-    tks[1]: W2InfPotential(tk=tks[1], strength=400.0, lambda_fn_type='triangle', width=0.2),
-    tks[1]: W2InfPotential(tk=tks[1], strength=100.0, lambda_fn_type='gaussian', width=0.05),
+    tks[0]: W2InfPotential(tk=tks[0], strength=500.0, lambda_type='box', width=0.1),
+    tks[1]: W2InfPotential(tk=tks[1], strength=400.0, lambda_type='triangle', width=0.2),
+    tks[1]: W2InfPotential(tk=tks[1], strength=100.0, lambda_type='gaussian', width=0.05),
 })
 ```
 

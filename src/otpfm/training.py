@@ -35,7 +35,7 @@ class Curriculum:
         ...     for batch_idx, batch in enumerate(dataloader):
         ...         iteration = epoch * iterations_per_epoch + batch_idx
         ...         otp_alpha = alpha_schedule(iteration)
-        ...         loss = model.forward_with_losses(batch, otp_alpha=otp_alpha)
+        ...         loss = model.forward_with_loss(batch, otp_alpha=otp_alpha)
     """
 
     def __init__(
