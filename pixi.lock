@@ -3878,13 +3878,12 @@ packages:
 - pypi: ./
   name: otpfm
   version: 0.1.0
-  sha256: b17c3f7e0d6094935df6f561ce30b6a34ad3dcd222fcb2a63ce3f482c54c404b
+  sha256: a9d3834c1b5b66ec4f925548e2f56db3f07ff18a07e6dce756a9f87872f9f4e6
   requires_dist:
   - torch>=2.0
   - numpy>=1.20
-  - torchdiffeq>=0.2.5 ; extra == 'ode'
   - pot>=0.9 ; extra == 'w2'
-  - otpfm[ode,w2] ; extra == 'all'
+  - otpfm[w2] ; extra == 'all'
   - otpfm[all] ; extra == 'experiments'
   - scikit-learn>=1.0 ; extra == 'experiments'
   - matplotlib>=3.5 ; extra == 'experiments'

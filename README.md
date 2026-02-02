@@ -7,7 +7,7 @@ A PyTorch library for training flow matching models with intermediate marginal c
   - [Why OTP-FM?](#why-otp-fm)
   - [Installation](#installation)
     - [For Users (pip)](#for-users-pip)
-    - [For Developers (pixi)](#for-developers-pixi)
+    - [To run experiments or develop (pixi)](#to-run-experiments-or-develop-pixi)
   - [Quick Start](#quick-start)
   - [Tutorials](#tutorials)
   - [Potential Types](#potential-types)
@@ -19,7 +19,7 @@ A PyTorch library for training flow matching models with intermediate marginal c
 
 ## Overview
 
-OTP-FM extends vanilla conditional flow matching (CFM) between endpoint marginals to incorporate intermediate marginal constraints as well. 
+OTP-FM extends vanilla conditional flow matching (CFM) between endpoint marginals to incorporate intermediate marginal constraints as well.
 We do so by modifying the **dynamic optimal transport** problem to incorporate **potential energy** terms corresponding to these intermediate marginals and updating the CFM targets based on the resulting dynamics.
 
 ## Why OTP-FM?
@@ -40,15 +40,9 @@ pip install otpfm
 
 # With W2Potential support (requires POT library)
 pip install otpfm[w2]
-
-# With ODE-based sampling (requires torchdiffeq)
-pip install otpfm[ode]
-
-# All optional dependencies
-pip install otpfm[all]
 ```
 
-### For Developers (pixi)
+### To run experiments or develop (pixi)
 
 [Pixi](https://pixi.sh) is a fast conda-like package manager. Install it first:
 
@@ -56,12 +50,16 @@ pip install otpfm[all]
 curl -sSf https://pixi.sh/install.sh | bash
 ```
 
-Then set up the development environment:
+Then set up the environment:
 
 ```bash
+git clone https://github.com/Bexorg-Inc/otpfm.git
+cd otpfm
 pixi install
 pixi shell
 ```
+
+Both the `otpfm` and `experiments` packages will be installed.
 
 ## Quick Start
 
@@ -75,7 +73,7 @@ from otpfm.potentials import W2InfPotential
 # For K=2 intermediate times: [source, t=0.33, t=0.67, target]
 xs = torch.randn(64, 4, 2)
 
-# Define K = 2 intermediate marginal constraints
+# Define K = 2 intermediate marginal potentials
 tks = [0.33, 0.67]  # Intermediate time points
 potentials = OrderedDict({
     tks[0]: W2InfPotential(tk=tks[0], strength=100.0, lambda_fn_type='gaussian', width=0.2),
@@ -95,23 +93,29 @@ model = OTPFM(
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 n_epochs = 100
-# This controls transition from vanilla flow matching (alpha=0) to full OTP-FM (alpha=1)
-otp_alpha_schedule = Curriculum(total_steps=n_epochs)  # Sigmoid schedule by default
+iterations_per_epoch = 50  # Number of batches per epoch
 
+# This controls transition from vanilla flow matching (alpha=0) to full OTP-FM (alpha=1)
+otp_alpha_schedule = Curriculum(total_iterations=n_epochs * iterations_per_epoch)  # Sigmoid schedule by default
+
+iterations = 0
 for epoch in range(n_epochs):
-    model.train()
-    otp_alpha = alpha_schedule(epoch)
-    
-    # Forward pass
-    loss = model.forward_with_losses(xs, otp_alpha=otp_alpha)
-    
-    # Backward pass
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-    
-    # Update EMA model (used for stable sampling)
-    model.update_ema()
+    for batch_idx in range(steps_per_epoch):
+        model.train()
+
+        otp_alpha = otp_alpha_schedule(iterations)
+
+        # Forward pass
+        loss = model.forward_with_losses(xs, otp_alpha=otp_alpha)
+
+        # Backward pass
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Update EMA model
+        model.update_ema()
+        iterations += 1
 
 # Sample trajectories
 model.eval()
@@ -154,7 +158,7 @@ class MyVelocityNet(nn.Module):
         """
         Args:
             x: (batch, d) positions
-            t1: (batch,) start times  
+            t1: (batch,) start times
             dt: (batch,) time intervals
         Returns:
             v: (batch, d) velocities

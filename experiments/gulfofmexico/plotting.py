@@ -72,7 +72,7 @@ def plot_2d_trajectories(
             trajectories[:, i, 1],
             alpha=0.5,
             linewidth=0.5,
-            color=COLOURS["bexgreen"],
+            color=COLOURS["lightgray"],
         )
     ax.set_xlabel("x")
     ax.set_ylabel("y")

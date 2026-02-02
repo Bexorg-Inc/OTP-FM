@@ -619,7 +619,7 @@ class OTPFM(nn.Module):
         ts.append(1.0)
         return torch.stack(xs), torch.tensor(ts)
 
-    def sample(self, x0s: Tensor, n_steps: int, ema: bool = True, method: str = "consistency"):
+    def sample(self, x0s: Tensor, n_steps: int, ema: bool = True):
         """
         Sample trajectories from the model.
 
@@ -627,15 +627,13 @@ class OTPFM(nn.Module):
             x0s: Initial positions, shape (batch_size, dim)
             n_steps: Number of time steps per marginal segment
             ema: Whether to use EMA model for velocity
-            method: Sampling method. One of {"consistency", "ode"}.
-                - "consistency": MeanFlow-style sampling (default)
-                - "ode": ODE integration using torchdiffeq (requires installation)
 
         Returns:
             xs: Trajectory tensor of shape (total_steps + 1, batch_size, dim)
             t_eval: Time points tensor of shape (total_steps + 1,)
         """
         v_func = self.v_func_ema if ema else self.v_func
-        self._sample_n_steps_per_marginal_consistency(x0s, n_steps, v_func)
+        return self._sample_n_steps_per_marginal_consistency(x0s, n_steps, v_func)
+
 
 __all__ = ["OTPFM"]
