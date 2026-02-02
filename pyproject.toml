@@ -82,29 +82,18 @@ testpaths = ["tests"]
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64"]
 
-[tool.pixi.pypi-dependencies]
-otpfm = { path = ".", editable = true }
-torchdiffeq = ">=0.2.5"
-phate = ">=2.0.0"
-
 [tool.pixi.tasks]
 
 [tool.pixi.dependencies]
 pytorch = ">=2.0"
 ipykernel = ">=7.1.0,<8"
 matplotlib = ">=3.10.7,<4"
-ipympl = ">=0.9.8,<0.10"
-voila = ">=0.5.11,<0.6"
 pot = ">=0.9.6.post1,<0.10"
 pytest = ">=9.0.2,<10"
-addict = ">=2.4.0,<3"
-pytorch-warmup = ">=0.2.0,<0.3"
-torch-ema = ">=0.3,<0.4"
 scikit-learn = ">=1.0"
 pandas = ">=2.0"
 scipy = ">=1.10"
 tqdm = ">=4.0"
-pillow = ">=10.0"
 black = ">=24.0"
 ruff = ">=0.4"
 pre-commit = ">=3.0"

@@ -5,6 +5,8 @@ environments:
     - url: https://conda.anaconda.org/conda-forge/
     indexes:
     - https://pypi.org/simple
+    options:
+      pypi-prerelease-mode: if-necessary-or-explicit
     packages:
       linux-64:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/_openmp_mutex-4.5-5_kmp_llvm.conda
@@ -3878,7 +3880,7 @@ packages:
 - pypi: ./
   name: otpfm
   version: 0.1.0
-  sha256: a9d3834c1b5b66ec4f925548e2f56db3f07ff18a07e6dce756a9f87872f9f4e6
+  sha256: b92e32c20911d56ad415baac7cddda49041ecd628b910fb9d12d3e25315c7faf
   requires_dist:
   - torch>=2.0
   - numpy>=1.20
@@ -3897,7 +3899,6 @@ packages:
   - ruff>=0.4 ; extra == 'dev'
   - pre-commit>=3.0 ; extra == 'dev'
   requires_python: '>=3.10'
-  editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/overrides-7.7.0-pyhd8ed1ab_1.conda
   sha256: 1840bd90d25d4930d60f57b4f38d4e0ae3f5b8db2819638709c36098c6ba770c
   md5: e51f1e4089cad105b6cac64bd8166587
