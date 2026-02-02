@@ -98,7 +98,14 @@ def MMD2_Poly(
     dot_pq = float(np.dot(m_p.ravel(), m_q.ravel()))
     A_pp = norm_p_sq**2 + d * var_p**2 + 2 * var_p * norm_p_sq + 2 * c * norm_p_sq + c**2
     A_qq = norm_q_sq**2 + d * var_q**2 + 2 * var_q * norm_q_sq + 2 * c * norm_q_sq + c**2
-    B_pq = dot_pq**2 + d * var_p * var_q + var_p * norm_q_sq + var_q * norm_p_sq + 2 * c * dot_pq + c**2
+    B_pq = (
+        dot_pq**2
+        + d * var_p * var_q
+        + var_p * norm_q_sq
+        + var_q * norm_p_sq
+        + 2 * c * dot_pq
+        + c**2
+    )
     return A_pp + A_qq - 2.0 * B_pq
 
 
@@ -334,28 +341,41 @@ class GaussianMarginalSolver:
 
     def _get_cache_key(self, extra_params: dict = None):
         """Generate cache key from parameters."""
+
         def serialize_value(value):
             if isinstance(value, np.ndarray):
                 return (value.shape, value.dtype.name, value.tobytes())
-            elif isinstance(value, (int, float, str, bool, type(None))):
+            elif isinstance(value, int | float | str | bool | type(None)):
                 return value
-            elif isinstance(value, (list, tuple)):
+            elif isinstance(value, list | tuple):
                 return tuple(serialize_value(v) for v in value)
             else:
                 return str(value)
 
         ode_args_for_cache = {k: v for k, v in self.ode_args.items() if k != "fun"}
         params = {
-            "d": self.d, "K": self.K,
-            "m0": serialize_value(self.m0), "m1": serialize_value(self.m1),
-            "sigma0": serialize_value(self.sigma0), "sigma1": serialize_value(self.sigma1),
-            "mk": serialize_value(self._mk), "sigma_k": serialize_value(self._sigma_k),
-            "w": serialize_value(self._w), "t_k": serialize_value(self._t_k),
+            "d": self.d,
+            "K": self.K,
+            "m0": serialize_value(self.m0),
+            "m1": serialize_value(self.m1),
+            "sigma0": serialize_value(self.sigma0),
+            "sigma1": serialize_value(self.sigma1),
+            "mk": serialize_value(self._mk),
+            "sigma_k": serialize_value(self._sigma_k),
+            "w": serialize_value(self._w),
+            "t_k": serialize_value(self._t_k),
             "lambda_width": serialize_value(self._lambda_width),
-            "gamma": self.gamma, "coef0": self.coef0, "distD": self.distD,
-            "r_D": self.r_D, "lambda_type": self.lambda_type,
-            "ode_args": tuple(sorted((k, serialize_value(v)) for k, v in ode_args_for_cache.items())),
-            "shooting_args": tuple(sorted((k, serialize_value(v)) for k, v in self.shooting_args.items())),
+            "gamma": self.gamma,
+            "coef0": self.coef0,
+            "distD": self.distD,
+            "r_D": self.r_D,
+            "lambda_type": self.lambda_type,
+            "ode_args": tuple(
+                sorted((k, serialize_value(v)) for k, v in ode_args_for_cache.items())
+            ),
+            "shooting_args": tuple(
+                sorted((k, serialize_value(v)) for k, v in self.shooting_args.items())
+            ),
         }
         if extra_params is not None:
             for key, value in extra_params.items():
@@ -415,7 +435,9 @@ class GaussianMarginalSolver:
     def get_D(self, m, s, k=None):
         if k is not None:
             return self._get_D_single(m, s, self._mk[k], self._sigma_k[k])
-        return np.array([self._get_D_single(m, s, self._mk[i], self._sigma_k[i]) for i in range(self.K)])
+        return np.array(
+            [self._get_D_single(m, s, self._mk[i], self._sigma_k[i]) for i in range(self.K)]
+        )
 
     def grad_D(self, m, s, k=None):
         if k is not None:
@@ -436,7 +458,9 @@ class GaussianMarginalSolver:
     def _lambda_t_single(self, t, t_k, lambda_width):
         match self.lambda_type:
             case "gaussian":
-                return np.exp(-0.5 * ((t - t_k) / lambda_width) ** 2) / (np.sqrt(2 * np.pi) * lambda_width)
+                return np.exp(-0.5 * ((t - t_k) / lambda_width) ** 2) / (
+                    np.sqrt(2 * np.pi) * lambda_width
+                )
             case "triangle":
                 x = (t - t_k) / lambda_width
                 return max(0.0, (1.0 - abs(x)) / lambda_width)
@@ -450,7 +474,9 @@ class GaussianMarginalSolver:
     def lambda_t(self, t, k=None):
         if k is not None:
             return self._lambda_t_single(t, self._t_k[k], self._lambda_width[k])
-        return np.array([self._lambda_t_single(t, self._t_k[i], self._lambda_width[i]) for i in range(self.K)])
+        return np.array(
+            [self._lambda_t_single(t, self._t_k[i], self._lambda_width[i]) for i in range(self.K)]
+        )
 
     def _unpack_y(self, y):
         m = y[: self.d]
@@ -503,6 +529,7 @@ class GaussianMarginalSolver:
 
     def terminal_residual(self, init_velocities):
         from scipy.integrate import solve_ivp
+
         v0, u0 = self._unpack_vu(init_velocities)
         y0 = self._pack_y(self.m0, self.sigma0, v0, u0)
         ode_args = self.ode_args.copy()
@@ -513,6 +540,7 @@ class GaussianMarginalSolver:
 
     def solve_bvp_root(self, init_guess):
         from scipy.optimize import root
+
         root_sol = root(self.terminal_residual, init_guess, method=self.root_method)
         if root_sol.success:
             self.ode_successful = True
@@ -523,9 +551,15 @@ class GaussianMarginalSolver:
 
     def solve_bvp_LS(self, init_guess):
         from scipy.optimize import least_squares
+
         res = least_squares(
-            self.terminal_residual, x0=init_guess, method=self.ls_method,
-            ftol=self.ftol, xtol=self.xtol, gtol=self.gtol, max_nfev=self.max_nfev
+            self.terminal_residual,
+            x0=init_guess,
+            method=self.ls_method,
+            ftol=self.ftol,
+            xtol=self.xtol,
+            gtol=self.gtol,
+            max_nfev=self.max_nfev,
         )
         self.v0_opt, self.u0_opt = self._unpack_vu(res.x)
 
@@ -548,10 +582,16 @@ class GaussianMarginalSolver:
             self.ode_successful = False
             self.ode_error = r"KL solution prohibitive for large $w$ - did not attempt!"
             self.v0_opt, self.u0_opt = self._unpack_vu(init_guess)
-            self._save_cache(cache_key, "bvp", {
-                "v0_opt": self.v0_opt, "u0_opt": self.u0_opt,
-                "ode_successful": self.ode_successful, "ode_error": self.ode_error
-            })
+            self._save_cache(
+                cache_key,
+                "bvp",
+                {
+                    "v0_opt": self.v0_opt,
+                    "u0_opt": self.u0_opt,
+                    "ode_successful": self.ode_successful,
+                    "ode_error": self.ode_error,
+                },
+            )
             return
 
         match self.shooting_method:
@@ -562,10 +602,16 @@ class GaussianMarginalSolver:
             case _:
                 raise ValueError(f"Unknown shooting method: {self.shooting_method}")
 
-        self._save_cache(cache_key, "bvp", {
-            "v0_opt": self.v0_opt, "u0_opt": self.u0_opt,
-            "ode_successful": self.ode_successful, "ode_error": self.ode_error
-        })
+        self._save_cache(
+            cache_key,
+            "bvp",
+            {
+                "v0_opt": self.v0_opt,
+                "u0_opt": self.u0_opt,
+                "ode_successful": self.ode_successful,
+                "ode_error": self.ode_error,
+            },
+        )
 
     def integrate_ode(self, t_eval):
         """Integrate ODE using solved initial velocities."""
@@ -581,6 +627,7 @@ class GaussianMarginalSolver:
             return
 
         from scipy.integrate import solve_ivp
+
         y0 = self._pack_y(self.m0, self.sigma0, self.v0_opt, self.u0_opt)
         ode_args = self.ode_args.copy()
         ode_args.update(dict(y0=y0, t_eval=t_eval))
@@ -590,10 +637,17 @@ class GaussianMarginalSolver:
         self.m_path, self.sigma_path, self.v_path, self.u_path = self._unpack_y(sol_full.y)
         self.t_eval = t_eval
 
-        self._save_cache(cache_key, "ode", {
-            "m_path": self.m_path, "sigma_path": self.sigma_path,
-            "v_path": self.v_path, "u_path": self.u_path, "t_eval": self.t_eval
-        })
+        self._save_cache(
+            cache_key,
+            "ode",
+            {
+                "m_path": self.m_path,
+                "sigma_path": self.sigma_path,
+                "v_path": self.v_path,
+                "u_path": self.u_path,
+                "t_eval": self.t_eval,
+            },
+        )
 
     def _check_bvp_and_ode_solved(self, t_eval=None):
         if self.v0_opt is None or self.u0_opt is None:
@@ -605,8 +659,10 @@ class GaussianMarginalSolver:
                 t_eval = np.linspace(0, 1, 100)
         t_eval_array = np.asarray(t_eval)
         needs_integration = (
-            not hasattr(self, "m_path") or self.m_path is None or
-            not hasattr(self, "t_eval") or self.t_eval is None
+            not hasattr(self, "m_path")
+            or self.m_path is None
+            or not hasattr(self, "t_eval")
+            or self.t_eval is None
         )
         if not needs_integration:
             existing = np.asarray(self.t_eval)
@@ -629,7 +685,7 @@ class GaussianMarginalSolver:
         if self.d != 1:
             raise ValueError("Plot results not implemented for d > 1")
         t_eval_array = self._check_bvp_and_ode_solved(t_eval)
-        
+
         if plot_velocities:
             fig, axs = plt.subplots(2, 2, figsize=(16, 10))
         else:
@@ -663,24 +719,53 @@ class GaussianMarginalSolver:
 
         for j in range(2):
             if j == 0:
-                path, vpath, endpoints, middle_points = self.m_path, self.v_path, [self.m0, self.m1], self._mk
+                path, vpath, endpoints, middle_points = (
+                    self.m_path,
+                    self.v_path,
+                    [self.m0, self.m1],
+                    self._mk,
+                )
                 axlabel, titlelabel = "m(t)", "Mean"
             else:
-                path, vpath, endpoints, middle_points = self.sigma_path, self.u_path, [self.sigma0, self.sigma1], self._sigma_k
+                path, vpath, endpoints, middle_points = (
+                    self.sigma_path,
+                    self.u_path,
+                    [self.sigma0, self.sigma1],
+                    self._sigma_k,
+                )
                 axlabel, titlelabel = r"$\sigma(t)$", r"$\sigma$"
 
             ax = axs[0, j]
             ax.plot(self.t_eval, path, color=linecolor, linewidth=linewidth)
-            ax.plot(self.t_eval, np.max(self.m_path) * lambda_vals, color=lambda_color, linewidth=linewidth, label=lambda_label)
+            ax.plot(
+                self.t_eval,
+                np.max(self.m_path) * lambda_vals,
+                color=lambda_color,
+                linewidth=linewidth,
+                label=lambda_label,
+            )
             ax.scatter([0, 1], endpoints, color="k", zorder=3, label="Endpoints", s=m_size)
-            ax.scatter(self._t_k, middle_points, color="#DC851F", zorder=3, label=f"Intermediate(s) (K={self.K})", s=m_size)
+            ax.scatter(
+                self._t_k,
+                middle_points,
+                color="#DC851F",
+                zorder=3,
+                label=f"Intermediate(s) (K={self.K})",
+                s=m_size,
+            )
             ax.set_ylabel(axlabel)
             ax.set_title(f"{titlelabel} trajectory {title_params}")
 
             if plot_velocities:
                 ax = axs[1, j]
                 ax.plot(self.t_eval, vpath, color=linecolor, linewidth=linewidth)
-                ax.plot(self.t_eval, np.max(vpath) * lambda_vals, color=lambda_color, linewidth=linewidth, label=lambda_label)
+                ax.plot(
+                    self.t_eval,
+                    np.max(vpath) * lambda_vals,
+                    color=lambda_color,
+                    linewidth=linewidth,
+                    label=lambda_label,
+                )
                 ax.set_ylabel(r"$v(t)$")
                 ax.set_title(f"{titlelabel} velocity {title_params}")
 
@@ -709,12 +794,27 @@ class GaussianMarginalSolver:
 
         if self.d == 1:
             func(
-                means_list, sigmas_list, x0s, self._t_k, xs, t_eval_array,
-                wks=self._w, title=title, lambda_width=self._lambda_width,
-                lambda_type=self.lambda_type, plot_dir=self.cache_dir, show=True
+                means_list,
+                sigmas_list,
+                x0s,
+                self._t_k,
+                xs,
+                t_eval_array,
+                wks=self._w,
+                title=title,
+                lambda_width=self._lambda_width,
+                lambda_type=self.lambda_type,
+                plot_dir=self.cache_dir,
+                show=True,
             )
         else:
             func(
-                means_list, sigmas_list, x0s, xs, self._t_k, t_eval_array,
-                plot_dir=self.cache_dir, show=True
+                means_list,
+                sigmas_list,
+                x0s,
+                xs,
+                self._t_k,
+                t_eval_array,
+                plot_dir=self.cache_dir,
+                show=True,
             )

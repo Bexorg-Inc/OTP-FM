@@ -219,9 +219,7 @@ class GaussianTrainer(Trainer):
         # Transform standard normal x0s to model input space
         x0s_model = self.x0s_transform_fn(x0s) if self.x0s_transform_fn else x0s
 
-        norm_xs_vcorr, t_eval = self.model.sample(
-            x0s_model, self.sampling_steps, ema=self.ema_eval
-        )
+        norm_xs_vcorr, t_eval = self.model.sample(x0s_model, self.sampling_steps, ema=self.ema_eval)
         xs_vcorr = unnormalize_fn(norm_xs_vcorr) if unnormalize_fn else norm_xs_vcorr
         self.epoch_trajectories_vcorr.append(xs_vcorr.cpu().numpy())
 
@@ -344,9 +342,7 @@ class GaussianTrainer(Trainer):
             if self.x0s_transform_fn
             else self.x0s_for_trajectories[:1]
         )
-        _, stored_t_eval = self.model.sample(
-            x0s_model, self.sampling_steps, ema=self.ema_eval
-        )
+        _, stored_t_eval = self.model.sample(x0s_model, self.sampling_steps, ema=self.ema_eval)
         t_eval_np = (
             stored_t_eval.cpu().numpy()
             if hasattr(stored_t_eval, "cpu")
@@ -371,7 +367,9 @@ class GaussianTrainer(Trainer):
                 duration=duration,
             )
 
-    def post_training(self, num_samples: int = 200, duration: int = 500, show: bool = False) -> Path:
+    def post_training(
+        self, num_samples: int = 200, duration: int = 500, show: bool = False
+    ) -> Path:
         """
         Run all post-training tasks.
 

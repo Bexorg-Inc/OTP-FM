@@ -1,6 +1,6 @@
 {
     "_description": "Default configuration for Beijing air quality PM2.5 dataset training",
-    
+
     "data_dir": "data/beijing",
     "normalize": true,
     "ot_coupling": true,
@@ -9,7 +9,7 @@
     "holdout_times": [2, 5, 8, 11],
     "batch_size": 128,
     "val_split": 0.0,
-    
+
     "hidden_dim": 128,
     "num_hidden_layers": 4,
     "x_hidden_layers": 0,
@@ -20,7 +20,7 @@
     "layernorm": true,
     "dropout": 0.0,
     "residual_every": 2,
-    
+
     "potential": "w2inf",
     "tks": [0.0833, 0.25, 0.333, 0.5, 0.5833, 0.75, 0.8333],
     "strength": 10.0,
@@ -36,13 +36,13 @@
     "kl_n_projections": 64,
     "kl_ssge_eta": 0.01,
     "kl_diagonal_cov": false,
-    
+
     "epochs": 600,
     "lr": 0.003,
     "optimizer": "adam",
     "grad_clip": 0.0,
     "reshuffle_each_epoch": true,
-    
+
     "consistency_loss": "meanflow",
     "lossfn": "mse",
     "time_sampler": "uniform_scaled_marginal",
@@ -61,18 +61,18 @@
     "traj_consistency_weight": 0.0,
     "traj_consistency_steps": 5,
     "trajectory_noise": 0.0,
-    
+
     "sampling_steps": 20,
     "eval_n_steps": 20,
     "eval_num_samples": 1000,
     "num_plot_trajectories": 1000,
     "traj_skips": null,
     "num_1d_plot_samples": 5,
-    
+
     "otp_alpha_type": "sigmoid",
     "otp_alpha_slope": 6.0,
     "otp_alpha_mean_scale": 0.5,
-    
+
     "seed": 42,
     "debug": false
 }

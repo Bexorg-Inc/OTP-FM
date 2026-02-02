@@ -21,7 +21,7 @@ All datasets are automatically downloaded during training. Storage locations:
 
 - **Single-cell (Embryoid Body)**: Downloads from TrajectoryNet repository
 - **Gulf of Mexico**: Downloads from GitHub
-- **Beijing Air Quality**: Downloads from UCI repository  
+- **Beijing Air Quality**: Downloads from UCI repository
 - **Gaussians**: Generated synthetically
 
 ## Running Experiments
@@ -73,7 +73,7 @@ Train on PM2.5 forecasting data:
 # OTP-FM
 python experiments/train.py --config experiments/beijingair/configs/otpfm.json
 
-# Baseline  
+# Baseline
 python experiments/train.py --config experiments/beijingair/configs/baseline.json
 ```
 
@@ -106,7 +106,7 @@ cd experiments/baselines
 # Run MMFM baseline
 python run_mmfm.py --dataset singlecell
 
-# Run 3MSBM baseline  
+# Run 3MSBM baseline
 python run_3msbm.py --dataset singlecell
 ```
 

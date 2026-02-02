@@ -3,7 +3,7 @@
 Wrapper script for running 3MSBM baseline.
 
 3MSBM (Momentum Multi-Marginal Schrödinger Bridge Matching) is from:
-Theodoropoulos et al. "Momentum multi-marginal Schrödinger bridge matching" 
+Theodoropoulos et al. "Momentum multi-marginal Schrödinger bridge matching"
 arXiv:2506.10168 (2025).
 
 Repository: https://github.com/nikitadobrokhtov/mmsbm
@@ -44,21 +44,21 @@ def check_3msbm_installation():
 def run_3msbm_beijing(args):
     """Run 3MSBM on Beijing air quality data."""
     logger.info("Loading Beijing air quality data...")
-    
+
     from experiments.beijingair.data import load_beijing_data
-    
+
     data = load_beijing_data(
         data_dir=Path(args.data_dir) / "beijing",
         normalize=True,
     )
-    
+
     logger.info(f"Data loaded. Train times: {data['train_times']}")
     logger.info(f"Holdout times: {data['holdout_times']}")
     logger.info(f"Dimension: {data['dim']}")
-    
+
     # 3MSBM training would be integrated here
     # They use a different training paradigm with Schrödinger Bridge
-    
+
     logger.info("=" * 60)
     logger.info("To run 3MSBM training:")
     logger.info(f"1. Clone: {MSBM_REPO}")
@@ -69,29 +69,32 @@ def run_3msbm_beijing(args):
 def run_3msbm_gom(args):
     """Run 3MSBM on Gulf of Mexico data."""
     logger.info("Loading Gulf of Mexico data...")
-    
+
     from experiments.gulfofmexico.data import load_gom_data
-    
+
     data = load_gom_data(
         data_dir=Path(args.data_dir) / "gom",
         normalize=True,
     )
-    
+
     logger.info(f"Data loaded. Train times: {data['train_times']}")
     logger.info("See 3MSBM repository for training implementation.")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run 3MSBM baseline")
-    parser.add_argument("--dataset", type=str, required=True,
-                        choices=["gulfofmexico", "beijingair"],
-                        help="Dataset to run on")
-    parser.add_argument("--data-dir", type=str, default="data",
-                        help="Data directory")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
+        choices=["gulfofmexico", "beijingair"],
+        help="Dataset to run on",
+    )
+    parser.add_argument("--data-dir", type=str, default="data", help="Data directory")
     parser.add_argument("--epochs", type=int, default=1000)
-    
+
     args = parser.parse_args()
-    
+
     if args.dataset == "beijingair":
         run_3msbm_beijing(args)
     elif args.dataset == "gulfofmexico":

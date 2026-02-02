@@ -106,26 +106,26 @@ conda activate env_3msbm
 if [[ "$POST_TRAINING" == true ]]; then
     echo ""
     echo "Running post-training evaluation..."
-    
+
     BASE_DIR="results_local/${DATE_TAG}/${POTENTIAL}"
     if [[ ! -d "$BASE_DIR" ]]; then
         echo "Error: Directory not found: $BASE_DIR"
         exit 1
     fi
-    
+
     # Find all seed directories
     for seed_dir in "$BASE_DIR"/seed_*; do
         if [[ ! -d "$seed_dir" ]]; then
             continue
         fi
-        
+
         # Find the run directory inside seed_N
         RUN_DIR=$(ls -d "$seed_dir"/*/ 2>/dev/null | head -1)
         if [[ -z "$RUN_DIR" ]]; then
             echo "  $(basename $seed_dir): no run directory found"
             continue
         fi
-        
+
         # Check if already has final epoch metrics in losses.csv
         # (Just having losses.csv isn't enough - need final epoch metrics)
         if [[ -f "${RUN_DIR}losses.csv" ]]; then
@@ -148,23 +148,23 @@ with open('${RUN_DIR}args.json') as f:
                 continue
             fi
         fi
-        
+
         # Check if has a model checkpoint
         CHECKPOINT=$(ls "$RUN_DIR"/models/model_epoch_*.pt 2>/dev/null | sort -V | tail -1)
         if [[ -z "$CHECKPOINT" ]]; then
             echo "  $(basename $seed_dir): no checkpoint found"
             continue
         fi
-        
+
         echo ""
         echo "============================================================"
         echo "Post-training: $(basename $seed_dir)"
         echo "============================================================"
-        
+
         PYTHONPATH=/home/ubuntu/fm-explore/src python -m $MODULE \
             --post-training-only "$RUN_DIR"
     done
-    
+
     echo ""
     echo "Post-training complete!"
     exit 0
@@ -178,13 +178,13 @@ for seed in $(seq 1 $NUM_SEEDS); do
     # Create unique save directory: results_local/<date>/<potential>/seed_<N>
     SAVE_DIR="results_local/${DATE_TAG}/${POTENTIAL}/seed_${seed}"
     mkdir -p "$SAVE_DIR"
-    
+
     echo "  Launching seed=$seed -> $SAVE_DIR"
     PYTHONPATH=/home/ubuntu/fm-explore/src python -m $MODULE \
         $BASE_ARGS --save-dir "$SAVE_DIR" --tag run $EXTRA_ARGS --seed $seed &
-    
+
     PIDS+=($!)
-    
+
     # Add delay between launches to prevent race conditions
     if [[ $seed -lt $NUM_SEEDS ]]; then
         sleep 3

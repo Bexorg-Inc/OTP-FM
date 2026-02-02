@@ -32,41 +32,33 @@ def get_otp_alpha_func(
 ) -> Callable[[int], float]:
     """
     Get the progressive loss weight function.
-    
+
     Args:
         otp_alpha_type: Type of schedule ("sigmoid", "0", "1")
         total_steps: Total number of training steps
         otp_alpha_slope: Slope for sigmoid schedule
         otp_alpha_mean_scale: Mean scale for sigmoid schedule
-        
+
     Returns:
         Function mapping step -> otp_alpha value
     """
     if otp_alpha_type == "0":
-        return lambda i: (
-            np.zeros_like(i, dtype=float) if isinstance(i, np.ndarray) else 0.0
-        )
+        return lambda i: (np.zeros_like(i, dtype=float) if isinstance(i, np.ndarray) else 0.0)
     elif otp_alpha_type == "1":
-        return lambda i: (
-            np.ones_like(i, dtype=float) if isinstance(i, np.ndarray) else 1.0
-        )
+        return lambda i: (np.ones_like(i, dtype=float) if isinstance(i, np.ndarray) else 1.0)
     else:  # sigmoid
         mean = total_steps / 2
         if mean == 0:
             mean = 1
         return lambda i: 1 / (
-            1
-            + np.exp(
-                -(otp_alpha_slope / mean)
-                * (i - (mean * otp_alpha_mean_scale))
-            )
+            1 + np.exp(-(otp_alpha_slope / mean) * (i - (mean * otp_alpha_mean_scale)))
         )
 
 
 class Trainer:
     """
     Base trainer for OTP-FM.
-    
+
     This class provides core training functions and utilities without domain-specific features.
     Subclass and override hooks for dataset-specific behavior.
     """
@@ -143,7 +135,9 @@ class Trainer:
         self.ema_eval = ema_eval
 
         # Use provided potentials or get from model
-        self.potentials = potentials if potentials is not None else getattr(model, 'potentials', None)
+        self.potentials = (
+            potentials if potentials is not None else getattr(model, "potentials", None)
+        )
 
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -194,7 +188,7 @@ class Trainer:
         log_file = self.save_dir / f"training_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
         self.log_file = log_file
@@ -209,7 +203,9 @@ class Trainer:
                     self.model.flownet.parameters(), lr=lr, momentum=0.9
                 )
             case "rmsprop":
-                self.optimizers["flow"] = torch.optim.RMSprop(self.model.flownet.parameters(), lr=lr)
+                self.optimizers["flow"] = torch.optim.RMSprop(
+                    self.model.flownet.parameters(), lr=lr
+                )
             case _:
                 raise ValueError(f"Invalid optimizer: {optimizer}")
 
@@ -244,9 +240,7 @@ class Trainer:
             otp_alpha = self.otp_alpha_func(self.global_step)
 
             if self.grad_clip:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=self.grad_clip
-                )
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.grad_clip)
 
             loss.backward()
             self.optimizers["flow"].step()
@@ -383,15 +377,16 @@ class Trainer:
 
             # Log epoch summary
             self.logger.info(
-                f"Epoch {epoch}: "
-                f"train_loss={train_loss:.4f}, val_loss={val_loss:.4f}"
+                f"Epoch {epoch}: " f"train_loss={train_loss:.4f}, val_loss={val_loss:.4f}"
             )
 
         self.on_train_end()
 
         self.logger.info(f"Training completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"Final losses: train_loss={self.losses['train_loss'][-1]:.4f}, "
-                         f"val_loss={self.losses['val_loss'][-1]:.4f}")
+        self.logger.info(
+            f"Final losses: train_loss={self.losses['train_loss'][-1]:.4f}, "
+            f"val_loss={self.losses['val_loss'][-1]:.4f}"
+        )
         return self.losses, batch
 
     def plot_losses(self, log: bool = False, show: bool = False) -> None:
@@ -407,10 +402,10 @@ class Trainer:
     def save_losses_csv(self, name: str = "losses.csv") -> Path:
         """
         Save the losses dictionary to a CSV file.
-        
+
         Args:
             name: Filename for the CSV
-            
+
         Returns:
             Path to saved CSV file
         """

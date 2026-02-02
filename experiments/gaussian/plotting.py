@@ -327,9 +327,7 @@ def create_trajectory_animation(
     # Save as animated GIF
     if frames:
         output_path = (plot_dir / name) if plot_dir else Path(name)
-        durations = (
-            [duration * 5] + [duration] * (len(frames) - 2) + [duration * 10]
-        )
+        durations = [duration * 5] + [duration] * (len(frames) - 2) + [duration * 10]
         frames[0].save(
             output_path,
             save_all=True,

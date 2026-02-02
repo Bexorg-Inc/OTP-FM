@@ -192,9 +192,7 @@ class EBMultiMarginalDataset(Dataset):
         self.ot_chains = np.zeros((n_source, n_times), dtype=np.int64)
         self.ot_chains[:, 0] = np.arange(n_source)
 
-        normalized_alignments = {
-            (int(k[0]), int(k[1])): v for k, v in self.ot_alignments.items()
-        }
+        normalized_alignments = {(int(k[0]), int(k[1])): v for k, v in self.ot_alignments.items()}
 
         for t_idx in range(n_times - 1):
             t_src, t_tgt = self.train_times[t_idx], self.train_times[t_idx + 1]

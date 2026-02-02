@@ -12,10 +12,10 @@ Implements:
 Author(s): Raghav Kansal
 """
 
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-import warnings
 import numpy as np
 import torch
 from torch import Tensor
@@ -34,6 +34,7 @@ class Potential(ABC):
         lambda_fn_type (str): lambda function type. Choose from {"gaussian", "triangle", "box", "delta"}. Default is "gaussian".
         width (float): width of the potential in time. Set to "auto" to automatically set it to (average Δt to adjacent marginals) / 2. Default is None.
     """
+
     tk: float
     strength: float
     lambda_fn_type: str = "gaussian"
@@ -44,8 +45,12 @@ class Potential(ABC):
 
     def __post_init__(self):
         if self.width is None and self.lambda_fn_type != "delta":
-            warnings.warn("Potential width is not specified and will be determined automatically." 
-            "Set to 'auto' if this is intended and you don't want this warning in the future.", UserWarning)
+            warnings.warn(
+                "Potential width is not specified and will be determined automatically."
+                "Set to 'auto' if this is intended and you don't want this warning in the future.",
+                UserWarning,
+                stacklevel=2,
+            )
             self.width = "auto"
         elif self.lambda_fn_type == "delta":
             self.width = 0.0
@@ -95,7 +100,7 @@ class Potential(ABC):
 class W2InfPotential(Potential):
     """
     W2-infinity potential (independent/random coupling).
-    
+
     Equivalent to OT map with infinite entropy regularization.
     The gradient is simply (X_tk - x_true).
     """
@@ -330,7 +335,7 @@ class KLPotential(Potential):
         m = y.shape[0]
 
         # Compute bandwidth(s) as Python float
-        if isinstance(self.bandwidth, (int, float)):
+        if isinstance(self.bandwidth, int | float):
             h2_xx = h2_xy = float(self.bandwidth) ** 2
         else:
             # Silverman bandwidth
@@ -682,7 +687,7 @@ class KLPotential(Potential):
         """Compute KDE bandwidth using specified rule, scaled for score estimation."""
         n, d = samples.shape
 
-        if isinstance(self.bandwidth, (int, float)):
+        if isinstance(self.bandwidth, int | float):
             return float(self.bandwidth)
         elif self.bandwidth == "silverman":
             # Silverman's rule of thumb, scaled for score estimation
@@ -726,27 +731,27 @@ class MMDPolyPotential(Potential):
         # Dot products
         # s_xx[i,j]  = x_i^T x_j + c
         # s_xmu[i,j] = x_i^T y_j + c
-        s_xx = x @ x.t() + float(self.coef0)            # (N, N)
-        s_xmu = x @ y_mu.t() + float(self.coef0)        # (N, N_mu)
+        s_xx = x @ x.t() + float(self.coef0)  # (N, N)
+        s_xmu = x @ y_mu.t() + float(self.coef0)  # (N, N_mu)
 
         p = int(self.degree)
 
         if p == 1:
             # k(x,y) = x^T y + c => grad_x k = y
             # E_rho[y] - E_mu[y]
-            e_rho = x.mean(dim=0, keepdim=True).expand_as(x)      # (N, D)
-            e_mu = y_mu.mean(dim=0, keepdim=True).expand_as(x)    # (N, D)
+            e_rho = x.mean(dim=0, keepdim=True).expand_as(x)  # (N, D)
+            e_mu = y_mu.mean(dim=0, keepdim=True).expand_as(x)  # (N, D)
             grad = 2.0 * (e_rho - e_mu)
             return grad.reshape(orig_shape)
 
         # coeff matrices: p * (s)^(p-1)
-        coeff_xx = p * s_xx.pow(p - 1)     # (N, N)
-        coeff_xmu = p * s_xmu.pow(p - 1)   # (N, N_mu)
+        coeff_xx = p * s_xx.pow(p - 1)  # (N, N)
+        coeff_xmu = p * s_xmu.pow(p - 1)  # (N, N_mu)
 
         # For each i: E_{y}[ p*(x_i^T y + c)^(p-1) * y ]
         # This is a weighted average of y vectors.
-        e_rho = (coeff_xx @ x) / x.shape[0]          # (N, D)
-        e_mu = (coeff_xmu @ y_mu) / y_mu.shape[0]    # (N, D)
+        e_rho = (coeff_xx @ x) / x.shape[0]  # (N, D)
+        e_mu = (coeff_xmu @ y_mu) / y_mu.shape[0]  # (N, D)
 
         grad = 2.0 * (e_rho - e_mu)
         return grad.reshape(orig_shape)

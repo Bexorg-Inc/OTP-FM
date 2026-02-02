@@ -92,12 +92,7 @@ trajectory_args = {
 }
 
 
-def save_plot(
-    plot_dir: Path = None,
-    name: str = None,
-    show: bool = True,
-    close: bool = True
-):
+def save_plot(plot_dir: Path = None, name: str = None, show: bool = True, close: bool = True):
     """Save plot to file and optionally display."""
     if plot_dir is not None:
         plt.savefig(plot_dir / f"{name}.pdf", bbox_inches="tight")
@@ -117,7 +112,7 @@ def plot_losses_otp(
 ):
     """
     Plot training losses and OTP alpha schedule.
-    
+
     Args:
         losses: Dictionary with 'train_loss', 'val_loss', 'otp_alpha' keys
         name: Filename for saved plot
@@ -390,7 +385,7 @@ def plot_target_vs_learned(
         ax.set_xlabel("Time $t$", fontsize=fontsize)
         if idx == 0:
             ax.set_ylabel(f"Dimension {plot_dim}", fontsize=fontsize)
-        
+
         if ylim is not None:
             ax.set_ylim(ylim)
 
@@ -469,7 +464,7 @@ def plot_trajectories_1d(
 
     n_marginals = len(means)  # K + 2
     t_k = np.atleast_1d(t_k)
-    times = np.concatenate([[0.0], t_k, [1.0]]) 
+    times = np.concatenate([[0.0], t_k, [1.0]])
 
     for i in range(n_marginals):
         t = times[i]
@@ -522,7 +517,7 @@ def plot_samples_2d(
     samples_p1: np.ndarray,
     plot_dir: Path = None,
     name: str = "distributions",
-    show: bool = True
+    show: bool = True,
 ):
     """Plot 2D sample distributions."""
     _, ax = plt.subplots(figsize=(8, 8))

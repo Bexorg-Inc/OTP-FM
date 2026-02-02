@@ -239,7 +239,9 @@ class BeijingMultiMarginalDataset(Dataset):
                 samples.append(self.data_by_time[t][self.ot_chains[chain_idx, t_idx]])
         else:
             for t in self.train_times:
-                samples.append(self.data_by_time[t][self.indices[t][idx % len(self.data_by_time[t])]])
+                samples.append(
+                    self.data_by_time[t][self.indices[t][idx % len(self.data_by_time[t])]]
+                )
         return samples
 
     def reshuffle(self):
@@ -270,7 +272,9 @@ def create_beijing_dataloaders(
 ) -> tuple[DataLoader, DataLoader]:
     """Create train/val DataLoaders for Beijing dataset."""
     train_times = [t for t in ALL_TIMES if t not in (holdout_times or DEFAULT_HOLDOUT_TIMES)]
-    dataset = BeijingMultiMarginalDataset(marginals, train_times=train_times, ot_alignments=ot_alignments)
+    dataset = BeijingMultiMarginalDataset(
+        marginals, train_times=train_times, ot_alignments=ot_alignments
+    )
 
     if val_split > 0:
         val_size = int(len(dataset) * val_split)

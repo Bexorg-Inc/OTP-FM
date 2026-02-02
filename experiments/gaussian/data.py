@@ -101,12 +101,20 @@ def create_gaussian_dataloaders(
 
     # Create DataLoaders
     train_loader = DataLoader(
-        TensorDataset(*train_marginals) if len(train_marginals) > 1 else TensorDataset(train_marginals[0]),
+        (
+            TensorDataset(*train_marginals)
+            if len(train_marginals) > 1
+            else TensorDataset(train_marginals[0])
+        ),
         batch_size=batch_size,
         shuffle=True,
     )
     val_loader = DataLoader(
-        TensorDataset(*val_marginals) if len(val_marginals) > 1 else TensorDataset(val_marginals[0]),
+        (
+            TensorDataset(*val_marginals)
+            if len(val_marginals) > 1
+            else TensorDataset(val_marginals[0])
+        ),
         batch_size=batch_size,
         shuffle=False,
     )

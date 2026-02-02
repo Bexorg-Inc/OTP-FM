@@ -23,6 +23,7 @@ from torch import Tensor
 try:
     import ot
     from ot.sliced import sliced_wasserstein_distance
+
     HAS_POT = True
 except ImportError:
     HAS_POT = False
@@ -45,8 +46,10 @@ def compute_swd(
         SWD value (scalar)
     """
     if not HAS_POT:
-        raise ImportError("POT library required for SWD. Install with: pip install 'otpfm[experiments]' or (standalone) pip install pot")
-    
+        raise ImportError(
+            "POT library required for SWD. Install with: pip install 'otpfm[experiments]' or (standalone) pip install pot"
+        )
+
     # Convert to numpy if tensor
     if isinstance(generated, Tensor):
         generated = generated.detach().cpu().numpy()
@@ -146,8 +149,10 @@ def compute_w2_distance(
         W2 distance (scalar), or (distance, plan) if return_plan=True
     """
     if not HAS_POT:
-        raise ImportError("POT library required for W2. Install with: pip install 'otpfm[experiments]' or (standalone) pip install pot")
-    
+        raise ImportError(
+            "POT library required for W2. Install with: pip install 'otpfm[experiments]' or (standalone) pip install pot"
+        )
+
     # Convert to numpy and move to CPU
     if isinstance(generated, Tensor):
         generated = generated.detach().cpu().numpy()
@@ -264,11 +269,11 @@ def get_metric_columns(
 ) -> list[str]:
     """
     Generate column names for metrics in standard format.
-    
+
     Args:
         time_keys: Time keys (e.g., ["t1", "t3", "t2+t4"])
         metrics: Metric names (e.g., ["SWD", "MMD", "FGD", "W2"])
-        
+
     Returns:
         List of column names like ["t1_SWD", "t1_MMD", ..., "t2+t4_W2"]
     """

@@ -148,16 +148,24 @@ def plot_losses(
     if "train_loss" in losses and losses["train_loss"]:
         train_epochs = np.arange(1, len(losses["train_loss"]) + 1)
         if log:
-            ax.semilogy(train_epochs, losses["train_loss"], label="Train", color=COLOURS["brightorange"])
+            ax.semilogy(
+                train_epochs, losses["train_loss"], label="Train", color=COLOURS["brightorange"]
+            )
         else:
-            ax.plot(train_epochs, losses["train_loss"], label="Train", color=COLOURS["brightorange"])
+            ax.plot(
+                train_epochs, losses["train_loss"], label="Train", color=COLOURS["brightorange"]
+            )
 
     if "val_loss" in losses and losses["val_loss"]:
         val_epochs = np.arange(0, len(losses["val_loss"]))
         if log:
-            ax.semilogy(val_epochs, losses["val_loss"], "--", label="Val", color=COLOURS["brightorange"])
+            ax.semilogy(
+                val_epochs, losses["val_loss"], "--", label="Val", color=COLOURS["brightorange"]
+            )
         else:
-            ax.plot(val_epochs, losses["val_loss"], "--", label="Val", color=COLOURS["brightorange"])
+            ax.plot(
+                val_epochs, losses["val_loss"], "--", label="Val", color=COLOURS["brightorange"]
+            )
 
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
@@ -183,7 +191,9 @@ def plot_losses(
             if key in losses and losses[key]:
                 ax.plot(metric_epochs[: len(losses[key])], losses[key], label=f"t{t}")
         if "swd_t2_t4" in losses and losses["swd_t2_t4"]:
-            ax.plot(metric_epochs[: len(losses["swd_t2_t4"])], losses["swd_t2_t4"], "--", label="t2+t4")
+            ax.plot(
+                metric_epochs[: len(losses["swd_t2_t4"])], losses["swd_t2_t4"], "--", label="t2+t4"
+            )
     ax.set_xlabel("Epoch")
     ax.set_ylabel("SWD")
     ax.set_title("Sliced Wasserstein Distance")
@@ -197,7 +207,9 @@ def plot_losses(
             if key in losses and losses[key]:
                 ax.plot(metric_epochs[: len(losses[key])], losses[key], label=f"t{t}")
         if "fgd_t2_t4" in losses and losses["fgd_t2_t4"]:
-            ax.plot(metric_epochs[: len(losses["fgd_t2_t4"])], losses["fgd_t2_t4"], "--", label="t2+t4")
+            ax.plot(
+                metric_epochs[: len(losses["fgd_t2_t4"])], losses["fgd_t2_t4"], "--", label="t2+t4"
+            )
     ax.set_xlabel("Epoch")
     ax.set_ylabel("FGD")
     ax.set_title("Fréchet Gaussian Distance")

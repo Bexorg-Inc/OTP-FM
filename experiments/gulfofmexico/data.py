@@ -181,7 +181,9 @@ class GoMMultiMarginalDataset(Dataset):
                 samples.append(self.data_by_time[t][self.ot_chains[chain_idx, t_idx]])
         else:
             for t in self.train_times:
-                samples.append(self.data_by_time[t][self.indices[t][idx % len(self.data_by_time[t])]])
+                samples.append(
+                    self.data_by_time[t][self.indices[t][idx % len(self.data_by_time[t])]]
+                )
         return samples
 
     def reshuffle(self):
@@ -211,7 +213,9 @@ def create_gom_dataloaders(
     ot_alignments: dict | None = None,
 ) -> tuple[DataLoader, DataLoader]:
     """Create train/val DataLoaders for GoM dataset."""
-    dataset = GoMMultiMarginalDataset(marginals, holdout_times=holdout_times, ot_alignments=ot_alignments)
+    dataset = GoMMultiMarginalDataset(
+        marginals, holdout_times=holdout_times, ot_alignments=ot_alignments
+    )
 
     if val_split > 0:
         val_size = int(len(dataset) * val_split)

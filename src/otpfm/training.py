@@ -3,17 +3,18 @@ Implements the OTP-FM learning curriculum.
 
 Author(s): Raghav Kansal
 """
+
 import math
 
 
 class Curriculum:
     """
-    OTP-FM learning curriculum. 
-    
+    OTP-FM learning curriculum.
+
     The ``alpha(i)`` parameter controls the transition from vanilla flow matching (``alpha(i)=0``)
-    to full OTP-FM (``alpha(i)=1``) as a function of the training iteration ``i``. 
-    
-    We observe the sigmoid schedule most stable. The default hyperparameters are tuned for the W2Inf potential; 
+    to full OTP-FM (``alpha(i)=1``) as a function of the training iteration ``i``.
+
+    We observe the sigmoid schedule most stable. The default hyperparameters are tuned for the W2Inf potential;
     hyperparameters for other potentials can be found in the paper TODO.
 
     Args:
@@ -81,7 +82,9 @@ class Curriculum:
             case "constant":
                 return 1.0
             case _:
-                raise ValueError(f"Unknown schedule: {self.schedule}. Use 'sigmoid', 'linear', 'constant', '0', or '1'.")
+                raise ValueError(
+                    f"Unknown schedule: {self.schedule}. Use 'sigmoid', 'linear', 'constant', '0', or '1'."
+                )
 
     def __repr__(self) -> str:
         return (

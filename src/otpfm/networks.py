@@ -28,10 +28,10 @@ def get_activation(name: str) -> type[nn.Module]:
 class MLP(nn.Module):
     """
     MLP with optional residual connections.
-    
+
     Args:
         input_dim: Input dimension
-        hidden_dim: Hidden layer dimension  
+        hidden_dim: Hidden layer dimension
         output_dim: Output dimension
         num_hidden_layers: Number of hidden layers
         activation_fn: Activation function name
@@ -40,6 +40,7 @@ class MLP(nn.Module):
         residual_every: Add residual connection every N layers (0 = no residuals)
         zero_init: Whether to zero-initialize final layer
     """
+
     def __init__(
         self,
         input_dim: int,
@@ -132,7 +133,7 @@ class PositionalEmbedding(nn.Module):
 class FlowNetMLP(nn.Module):
     """
     MLP velocity predictor with optional residual connections.
-    
+
     Args:
         d: Data dimension
         x_emb_dim: Position embedding dimension
@@ -148,6 +149,7 @@ class FlowNetMLP(nn.Module):
         dropout: Dropout rate (0 = no dropout)
         residual_every: Add residual connection every N layers (0 = no residuals)
     """
+
     def __init__(
         self,
         d: int,
@@ -298,14 +300,18 @@ class FlowNetMLP(nn.Module):
 
         # Embedding descriptions
         if self.x_hidden_layers > 0:
-            x_emb_desc = f"MLP({self.d} → [{self.x_emb_dim}] × {self.x_hidden_layers} → {self.x_emb_dim})"
+            x_emb_desc = (
+                f"MLP({self.d} → [{self.x_emb_dim}] × {self.x_hidden_layers} → {self.x_emb_dim})"
+            )
         else:
             x_emb_desc = f"Linear({self.d} → {self.x_emb_dim})"
 
         if self.t_hidden_layers > 0:
             t_emb_desc = f"PositionalEmb({self.t_emb_dim}) + MLP({2*self.t_emb_dim} → [{2*self.t_emb_dim}] × {self.t_hidden_layers} → {2*self.t_emb_dim})"
         else:
-            t_emb_desc = f"PositionalEmb({self.t_emb_dim}) + Linear({2*self.t_emb_dim} → {2*self.t_emb_dim})"
+            t_emb_desc = (
+                f"PositionalEmb({self.t_emb_dim}) + Linear({2*self.t_emb_dim} → {2*self.t_emb_dim})"
+            )
 
         lines = [
             "FlowNetMLP(",
@@ -324,21 +330,23 @@ class FlowNetMLP(nn.Module):
             lines.append(f"    dropout: {self.dropout_rate} after each hidden layer")
         if self.predict_log_var:
             lines.append(f"    log_var_mlp: {2*self.t_emb_dim} → {hidden_dim//4} → 1")
-        lines.extend([
-            "  ─────────────────────────────────────────",
-            f"  Parameters: {num_params:,} total, {trainable_params:,} trainable",
-            ")",
-        ])
+        lines.extend(
+            [
+                "  ─────────────────────────────────────────",
+                f"  Parameters: {num_params:,} total, {trainable_params:,} trainable",
+                ")",
+            ]
+        )
         return "\n".join(lines)
 
 
 def create_ema_flownet(flownet: nn.Module) -> nn.Module:
     """
     Create an EMA copy of a velocity network.
-    
+
     Args:
         flownet: The velocity network to copy
-        
+
     Returns:
         EMA copy with requires_grad=False
     """
