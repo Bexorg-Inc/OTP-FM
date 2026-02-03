@@ -11,9 +11,9 @@ from collections import OrderedDict
 import numpy as np
 import pytest
 import torch
-from experiments.gulfofmexico import GoMTrainer
+
+from experiments.gulfofmexico import GoMTrainer, plotting
 from experiments.gulfofmexico import data as dataset
-from experiments.gulfofmexico import plotting
 
 # ============================================================================
 # Fixtures

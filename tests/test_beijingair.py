@@ -11,9 +11,9 @@ from collections import OrderedDict
 import numpy as np
 import pytest
 import torch
-from experiments.beijingair import BeijingTrainer
+
+from experiments.beijingair import BeijingTrainer, plotting
 from experiments.beijingair import data as dataset
-from experiments.beijingair import plotting
 
 # ============================================================================
 # Fixtures

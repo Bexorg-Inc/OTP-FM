@@ -679,10 +679,11 @@ class TestIntegration:
 
     def test_full_training_pipeline(self, device, tmp_path):
         """Test full training pipeline with Gaussian data."""
-        from experiments import Trainer
         from otpfm import OTPFM
         from otpfm.potentials import W2InfPotential as IndependentPotential
         from sklearn.model_selection import train_test_split
+
+        from experiments import Trainer
 
         # Generate data
         torch.manual_seed(42)
@@ -767,10 +768,11 @@ class TestIntegration:
 
     def test_multiple_potentials(self, device, tmp_path):
         """Test model with multiple intermediate potentials."""
-        from experiments import Trainer
         from otpfm import OTPFM
         from otpfm.potentials import W2InfPotential as IndependentPotential
         from sklearn.model_selection import train_test_split
+
+        from experiments import Trainer
 
         # Generate data with 4 marginals (2 intermediate)
         torch.manual_seed(42)

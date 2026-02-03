@@ -55,14 +55,14 @@ jobs:
         run: |
           # Determine badge color based on coverage
           COLOR=$(python -c "c=$COVERAGE; print('brightgreen' if c>=90 else 'green' if c>=80 else 'yellow' if c>=70 else 'orange' if c>=60 else 'red')")
-          
+
           # Create badge JSON
           echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${COVERAGE}%\",\"color\":\"${COLOR}\"}" > coverage-badge.json
-          
+
           # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Create/update badges branch with just the badge file
           git fetch origin badges || true
           git checkout --orphan badges-temp

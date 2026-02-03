@@ -10,16 +10,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import torch
+from otpfm import Curriculum
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from experiments import plotting
-from otpfm import Curriculum
 
 logger = logging.getLogger(__name__)
 

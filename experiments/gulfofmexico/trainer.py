@@ -13,9 +13,9 @@ import torch
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
-from experiments.plotting import plot_target_vs_learned
 from experiments import Trainer
 from experiments.gulfofmexico import plotting
+from experiments.plotting import plot_target_vs_learned
 
 
 class GoMTrainer(Trainer):

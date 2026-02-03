@@ -506,9 +506,10 @@ class TestIntegration:
 
         import numpy as np
         import torch
-        from experiments import evaluation
         from otpfm import OTPFM
         from otpfm.potentials import MMDRBFPotential
+
+        from experiments import evaluation
         from experiments.singlecell.data import create_eb_dataloaders
 
         # Create synthetic data
@@ -693,7 +694,8 @@ class TestTrainScript:
 
     def test_create_potential(self):
         """Test potential creation from train module."""
-        from otpfm.potentials import W2InfPotential, MMDRBFPotential, W2Potential
+        from otpfm.potentials import MMDRBFPotential, W2InfPotential, W2Potential
+
         from experiments.train import create_potential
 
         # Test W2Inf
@@ -722,6 +724,7 @@ class TestTrainScript:
     def test_create_potential_with_overrides(self):
         """Test potential creation with strength/width overrides."""
         from otpfm.potentials import W2InfPotential
+
         from experiments.train import create_potential
 
         config = {
