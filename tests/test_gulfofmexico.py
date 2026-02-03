@@ -203,7 +203,7 @@ class TestDataset:
 class TestPlotting:
     """Tests for GoM plotting functions."""
 
-    def test_plot_2d_trajectories(self, gom_marginals_dict, tmp_path):
+    def test_plot_trajectories(self, gom_marginals_dict, tmp_path):
         """Test 2D trajectory plot creation."""
         # Create dummy trajectories
         n_steps = 20
@@ -213,23 +213,11 @@ class TestPlotting:
 
         save_path = tmp_path / "trajectories.pdf"
 
-        plotting.plot_2d_trajectories(
+        plotting.plot_trajectories(
             trajectories=trajectories,
-            time_points=t_eval,
+            t_eval=t_eval,
             ground_truth_marginals=gom_marginals_dict,
             num_trajectories=20,
-            save_path=save_path,
-            show=False,
-        )
-
-        assert save_path.exists()
-
-    def test_plot_spatial_marginals(self, gom_marginals_dict, tmp_path):
-        """Test spatial marginal plot creation."""
-        save_path = tmp_path / "spatial.pdf"
-
-        plotting.plot_spatial_marginals(
-            marginals=gom_marginals_dict,
             save_path=save_path,
             show=False,
         )

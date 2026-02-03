@@ -1,5 +1,5 @@
 """
-Gaussian-specific plotting utilities.
+Gaussian plotting functions.
 
 Author(s): Raghav Kansal
 """
