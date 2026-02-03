@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 GOM_DATA_URL = "https://raw.githubusercontent.com/YunyiShen/SB-Iterative-Reference-Refinement/5d91ad36c65e4f46ff16202d0c788619a7538bda/Notebooks/data/GoMvortex_data.npy"
 GOM_DATA_FILENAME = "GoMvortex_data.npy"
 
+# Time key constants for GoM evaluation
+EVAL_TIMES = ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"]
+TRAIN_TIMES = ["t2", "t4", "t6", "t8"]
+ALL_TIMES = EVAL_TIMES + ["rest"]
+
 
 def download_gom_data(data_dir: Path) -> Path:
     """Download Gulf of Mexico data if not present."""

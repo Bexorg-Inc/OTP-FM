@@ -9,12 +9,13 @@ from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
 from experiments import Trainer
-from experiments.evaluation import compute_fgd, compute_swd, compute_w2_distance
+from experiments.evaluation import compute_fgd, compute_mmd, compute_swd, compute_w2_distance
 from experiments.plotting import plot_target_vs_learned
 from experiments.singlecell import plotting
 
@@ -23,10 +24,7 @@ class EBTrainer(Trainer):
     """
     Trainer for Embryoid Body (EB) single-cell experiments.
 
-    Extends the base Trainer with:
-    - Reshuffling cell pairings each epoch
-    - Automatic evaluation on held-out time points
-    - Single-cell specific visualizations
+    Extends the base Trainer with EB-specific plotting and evaluation metrics.
     """
 
     def __init__(
@@ -61,6 +59,7 @@ class EBTrainer(Trainer):
         eval_num_samples: int = 2000,
         traj_skips: int | None = None,
         num_1d_plot_samples: int = 5,
+        animation_duration: int = 500,
     ):
         """Initialize the EB trainer."""
         super().__init__(
@@ -90,6 +89,7 @@ class EBTrainer(Trainer):
         self.eval_n_steps = eval_n_steps
         self.eval_num_samples = eval_num_samples
         self.num_1d_plot_samples = num_1d_plot_samples
+        self.animation_duration = animation_duration
 
         # Auto-compute traj_skips
         if traj_skips is None:
@@ -107,6 +107,10 @@ class EBTrainer(Trainer):
 
         # Initialize metric tracking
         self._init_marginal_metrics()
+
+        # Log configuration
+        if reshuffle_each_epoch:
+            self.logger.info("Reshuffling cell pairings each epoch")
 
     def _get_underlying_dataset(self):
         """Get the underlying dataset, handling random_split wrapper."""
@@ -128,7 +132,7 @@ class EBTrainer(Trainer):
         """Save initial state before training."""
         self._save_epoch_trajectories(epoch=0)
         self._plot_xtk_comparison(epoch=0)
-        self._compute_marginal_metrics(epoch=0)
+        self._compute_metrics(epoch=0)
 
     def on_epoch_start(self, epoch: int, batch: Tensor | None = None):
         """Reshuffle cell pairings."""
@@ -143,7 +147,7 @@ class EBTrainer(Trainer):
             self._save_epoch_trajectories(epoch=epoch + 1)
             self._plot_xtk_comparison(epoch=epoch + 1)
             if epoch != self.epochs - 1:
-                self._compute_marginal_metrics(epoch=epoch + 1, compute_mmd=False)
+                self._compute_metrics(epoch=epoch + 1, compute_mmd=False)
 
     @torch.no_grad()
     def _save_epoch_trajectories(self, epoch: int):
@@ -213,7 +217,7 @@ class EBTrainer(Trainer):
         return torch.stack(samples, dim=1)  # (n_samples, n_times, dim)
 
     @torch.no_grad()
-    def _compute_marginal_metrics(self, epoch: int, compute_mmd: bool = False):
+    def _compute_metrics(self, epoch: int, do_mmd: bool = False):
         """Compute metrics at all time points."""
         if self.marginals is None or not self.epoch_trajectories:
             return
@@ -252,7 +256,7 @@ class EBTrainer(Trainer):
 
             # Compute metrics
             self.losses[f"swd_t{t}"].append(compute_swd(generated, ground_truth))
-            if compute_mmd:
+            if do_mmd:
                 self.losses[f"mmd_t{t}"].append(compute_mmd(generated, ground_truth))
             self.losses[f"fgd_t{t}"].append(compute_fgd(generated, ground_truth))
             w2_dim = min(generated.shape[-1], 10)
@@ -273,15 +277,22 @@ class EBTrainer(Trainer):
             gt_combined = torch.cat([gt_2, gt_4])
 
             self.losses["swd_t2_t4"].append(compute_swd(gen_combined, gt_combined))
-            if compute_mmd:
+            if do_mmd:
                 self.losses["mmd_t2_t4"].append(compute_mmd(gen_combined, gt_combined))
             self.losses["fgd_t2_t4"].append(compute_fgd(gen_combined, gt_combined))
 
         self.losses["metric_epochs"].append(epoch)
 
-    def post_training(self, show: bool = False) -> Path:
+        # Log summary
+        log_parts = [f"Epoch {epoch} metrics:"]
+        for t in [1, 2, 3, 4]:
+            if t in self.marginals and self.losses.get(f"swd_t{t}"):
+                log_parts.append(f"t{t}(SWD={self.losses[f'swd_t{t}'][-1]:.4f})")
+        self.logger.info(" ".join(log_parts))
+
+    def post_training(self, show: bool = False, create_animation: bool = True) -> Path:
         """Run post-training tasks."""
-        self._compute_marginal_metrics(epoch=self.epochs, compute_mmd=True)
+        self._compute_metrics(epoch=self.epochs, do_mmd=True)
 
         # Plot losses
         self.plot_losses(show=show)
@@ -294,6 +305,13 @@ class EBTrainer(Trainer):
         # Plot trajectories
         if self.marginals is not None and self.epoch_trajectories:
             self._plot_final_trajectories()
+
+        # Create animation
+        if create_animation and self.epoch_trajectories:
+            self.create_animations()
+
+        # Append to master CSV
+        self.append_to_master_csv()
 
         return save_path
 
@@ -315,3 +333,94 @@ class EBTrainer(Trainer):
             save_path=self.save_dir / "trajectories_pc1_pc2.pdf",
             show=False,
         )
+
+        # Also plot PC3 vs PC4 if dimension is high enough
+        dim = trajectories.shape[-1]
+        if dim >= 4:
+            plotting.plot_pca_trajectories(
+                trajectories=trajectories,
+                time_points=self.trajectory_t_eval,
+                ground_truth_marginals=gt_marginals,
+                plot_times=all_times,
+                pcs=(2, 3),
+                save_path=self.save_dir / "trajectories_pc3_pc4.pdf",
+                show=False,
+            )
+
+    def create_animations(self, num_trajectories: int = 100, pcs: tuple[int, int] = (0, 1)):
+        """Create animated GIF showing trajectory evolution across training."""
+        if not self.epoch_trajectories or self.marginals is None or self.trajectory_t_eval is None:
+            self.logger.warning("Skipping animation: missing trajectories, marginals, or t_eval")
+            return
+
+        all_times = sorted(self.marginals.keys())
+        gt_marginals = {t: self.marginals[t] for t in all_times}
+
+        plotting.create_trajectory_animation(
+            epoch_trajectories=self.epoch_trajectories,
+            ground_truth_marginals=gt_marginals,
+            trajectory_t_eval=self.trajectory_t_eval,
+            save_path=self.save_dir / "trajectories_animation.gif",
+            traj_skips=self.traj_skips,
+            num_trajectories=num_trajectories,
+            pcs=pcs,
+            duration=self.animation_duration,
+        )
+
+    def plot_losses(self, log: bool = False, show: bool = False):
+        """Override to use single-cell specific loss plotting."""
+        plotting.plot_losses(
+            self.losses,
+            name="losses" + ("_log" if log else ""),
+            plot_dir=self.save_dir,
+            log=log,
+            show=show,
+        )
+
+    def append_to_master_csv(self, master_csv_path: Path | None = None):
+        """Append final metrics to master results CSV."""
+        if master_csv_path is None:
+            master_csv_path = self.save_dir.parent.parent / "master_results.csv"
+
+        model_dir = f"{self.save_dir.parent.name}/{self.save_dir.name}"
+
+        # Build result row with final metrics
+        row = {"model_dir": model_dir}
+
+        # Add final metric values
+        for key in [
+            "swd_t1",
+            "swd_t2",
+            "swd_t3",
+            "swd_t4",
+            "swd_t2_t4",
+            "fgd_t1",
+            "fgd_t2",
+            "fgd_t3",
+            "fgd_t4",
+            "fgd_t2_t4",
+            "w2_t1",
+            "w2_t2",
+            "w2_t3",
+            "w2_t4",
+        ]:
+            if key in self.losses and self.losses[key]:
+                row[key] = self.losses[key][-1]
+
+        # Add training metrics
+        if self.losses.get("train_loss"):
+            row["train_loss"] = self.losses["train_loss"][-1]
+        if self.losses.get("val_loss"):
+            row["val_loss"] = self.losses["val_loss"][-1]
+
+        df_row = pd.DataFrame([row])
+
+        if master_csv_path.exists():
+            existing_df = pd.read_csv(master_csv_path)
+            combined_df = pd.concat([existing_df, df_row], ignore_index=True)
+            combined_df.to_csv(master_csv_path, index=False)
+        else:
+            master_csv_path.parent.mkdir(parents=True, exist_ok=True)
+            df_row.to_csv(master_csv_path, index=False)
+
+        self.logger.info(f"Appended results to {master_csv_path}")

@@ -26,15 +26,17 @@ python experiments/train.py --dataset gaussian --config configs/gaussian/default
 **Run tests after making changes:**
 
 ```bash
-# Run all tests
-pixi run pytest tests/ -v
+# Run all tests (PYTHONPATH is required for imports to work)
+PYTHONPATH="${PYTHONPATH}:$(pwd)/src" pixi run pytest tests/ -v --tb=short
 
 # Run specific test files
-pixi run pytest tests/test_gaussian.py -v
-pixi run pytest tests/test_singlecell.py -v
-pixi run pytest tests/test_gulfofmexico.py -v
-pixi run pytest tests/test_beijingair.py -v
+PYTHONPATH="${PYTHONPATH}:$(pwd)/src" pixi run pytest tests/test_gaussian.py -v
+PYTHONPATH="${PYTHONPATH}:$(pwd)/src" pixi run pytest tests/test_singlecell.py -v
+PYTHONPATH="${PYTHONPATH}:$(pwd)/src" pixi run pytest tests/test_gulfofmexico.py -v
+PYTHONPATH="${PYTHONPATH}:$(pwd)/src" pixi run pytest tests/test_beijingair.py -v
 ```
+
+**Important:** The `PYTHONPATH` prefix is required because the package is not installed in editable mode within the pixi environment. Without it, you'll get `ModuleNotFoundError: No module named 'otpfm'`.
 
 **Linting:**
 
@@ -55,7 +57,7 @@ The installable package containing the core algorithm:
 
 ```python
 from otpfm import OTPFM
-from otpfm.potentials import W2InfPotential, W2Potential, EntropicW2Potential, KLPotential
+from otpfm.potentials import W2InfPotential, W2Potential, MMDPotential, KLPotential
 from otpfm.lambdas import GaussianLambda, DeltaLambda
 from otpfm.solvers import AndersonSolver
 from otpfm.networks import FlowNetMLP
