@@ -13,7 +13,7 @@ import torch
 from PIL import Image
 from tqdm import tqdm
 
-from experiments.common.plotting import COLOURS, save_plot
+from experiments.plotting import COLOURS, save_plot
 
 
 def plot_pca_trajectories(

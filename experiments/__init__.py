@@ -17,9 +17,15 @@ Common utilities:
 
 import sys
 
-from experiments.common import evaluation, plotting, trainer
+from experiments.common import evaluation, plotting
+from experiments.common.trainer import Trainer
 
-# Register module aliases for cleaner imports
-sys.modules["experiments.evaluation"] = evaluation
+# Register as submodules so `from experiments.plotting import X` works
 sys.modules["experiments.plotting"] = plotting
-sys.modules["experiments.trainer"] = trainer
+sys.modules["experiments.evaluation"] = evaluation
+
+__all__ = [
+    "Trainer",
+    "evaluation",
+    "plotting",
+]

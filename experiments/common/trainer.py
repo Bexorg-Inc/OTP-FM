@@ -6,61 +6,28 @@ Author(s): Raghav Kansal
 
 import logging
 from collections import OrderedDict
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import torch
+from otpfm import Curriculum
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from experiments.common import plotting
+from experiments import plotting
 
 logger = logging.getLogger(__name__)
-
-
-def get_otp_alpha_func(
-    otp_alpha_type: str,
-    total_steps: int,
-    otp_alpha_slope: float = 6.0,
-    otp_alpha_mean_scale: float = 1.0,
-) -> Callable[[int], float]:
-    """
-    Get the progressive loss weight function.
-
-    Args:
-        otp_alpha_type: Type of schedule ("sigmoid", "0", "1")
-        total_steps: Total number of training steps
-        otp_alpha_slope: Slope for sigmoid schedule
-        otp_alpha_mean_scale: Mean scale for sigmoid schedule
-
-    Returns:
-        Function mapping step -> otp_alpha value
-    """
-    if otp_alpha_type == "0":
-        return lambda i: (np.zeros_like(i, dtype=float) if isinstance(i, np.ndarray) else 0.0)
-    elif otp_alpha_type == "1":
-        return lambda i: (np.ones_like(i, dtype=float) if isinstance(i, np.ndarray) else 1.0)
-    else:  # sigmoid
-        mean = total_steps / 2
-        if mean == 0:
-            mean = 1
-        return lambda i: 1 / (
-            1 + np.exp(-(otp_alpha_slope / mean) * (i - (mean * otp_alpha_mean_scale)))
-        )
 
 
 class Trainer:
     """
     Base trainer for OTP-FM.
 
-    This class provides core training functions and utilities without domain-specific features.
-    Subclass and override hooks for dataset-specific behavior.
+    This class provides core training functions and utilities without domain-specific features,
+    and subclass and override hooks for dataset-specific behavior.
     """
 
     def __init__(
@@ -103,7 +70,7 @@ class Trainer:
             do_otp: Whether to apply OTP corrections during training
             otp_alpha_type: Progressive loss weight type ("sigmoid", "0", "1")
             otp_alpha_slope: Slope for sigmoid schedule
-            otp_alpha_mean_scale: Mean scale for sigmoid schedule
+            otp_alpha_mean_scale: Mean scale for sigmoid schedule (default: 1.0)
             sampling_steps: Number of steps for trajectory sampling
             sampling_method: Sampling method ("consistency" or "ode")
             ema_eval: Whether to use EMA model for evaluation
@@ -123,11 +90,6 @@ class Trainer:
         self.optimizer_name = optimizer
         self.grad_clip = grad_clip
         self.do_otp = do_otp
-
-        # Progressive loss weighting
-        self.otp_alpha_type = otp_alpha_type
-        self.otp_alpha_slope = otp_alpha_slope
-        self.otp_alpha_mean_scale = otp_alpha_mean_scale
 
         # Sampling/evaluation
         self.sampling_steps = sampling_steps
@@ -168,10 +130,13 @@ class Trainer:
         # Global step counter
         self.global_step = 0
 
-        # Progressive loss weight function
+        # Curriculum for progressive loss weighting
         self.total_steps = epochs * len(train_loader)
-        self.otp_alpha_func = get_otp_alpha_func(
-            otp_alpha_type, self.total_steps, otp_alpha_slope, otp_alpha_mean_scale
+        self.curriculum = Curriculum(
+            total_iterations=self.total_steps,
+            schedule=otp_alpha_type,
+            slope=otp_alpha_slope,
+            midpoint=0.5 * otp_alpha_mean_scale,
         )
 
         # Animation settings
@@ -230,14 +195,14 @@ class Trainer:
             batch = self._process_batch(batch).to(self.device)
 
             # Forward pass
-            loss = self.model.forward_with_losses(
+            loss = self.model.forward_with_loss(
                 batch,
-                self.otp_alpha_func(self.global_step),
+                self.curriculum(self.global_step),
                 do_otp=self.do_otp,
             )
 
             # Backward pass with progressive weighting
-            otp_alpha = self.otp_alpha_func(self.global_step)
+            otp_alpha = self.curriculum(self.global_step)
 
             if self.grad_clip:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.grad_clip)
@@ -281,9 +246,9 @@ class Trainer:
         for i, batch in enumerate(self.val_loader):
             batch = self._process_batch(batch).to(self.device)
 
-            loss = self.model.forward_with_losses(
+            loss = self.model.forward_with_loss(
                 batch,
-                self.otp_alpha_func(self.global_step),
+                self.curriculum(self.global_step),
                 do_otp=self.do_otp,
                 debug=(i == 0),
             )
@@ -343,17 +308,6 @@ class Trainer:
         Returns:
             Tuple of (losses dict, last batch)
         """
-        # Plot otp_alpha schedule
-        steps = np.arange(self.total_steps)
-        otp_alphas = self.otp_alpha_func(steps)
-        fig = plt.figure(figsize=(4, 4))
-        plt.plot(steps / len(self.train_loader), otp_alphas)
-        plt.xlabel("Epoch")
-        plt.ylabel("OTP Alpha")
-        plt.title("OTP Alpha Schedule")
-        plt.savefig(self.save_dir / "otp_alpha_schedule.pdf")
-        plt.close()
-
         self.on_train_start()
 
         # Initial validation

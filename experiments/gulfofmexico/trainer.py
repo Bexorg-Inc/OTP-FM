@@ -13,9 +13,9 @@ import torch
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
-from experiments.common.plotting import plot_target_vs_learned
-from experiments.common.trainer import Trainer
+from experiments import Trainer
 from experiments.gulfofmexico import plotting
+from experiments.plotting import plot_target_vs_learned
 
 
 class GoMTrainer(Trainer):
@@ -152,7 +152,7 @@ class GoMTrainer(Trainer):
         else:
             batch = self._get_random_samples(5)
 
-        otp_alpha = self.otp_alpha_func(epoch * len(self.train_loader))
+        otp_alpha = self.curriculum(epoch * len(self.train_loader))
 
         plot_target_vs_learned(
             model=self.model,

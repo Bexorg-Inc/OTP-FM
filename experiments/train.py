@@ -230,7 +230,7 @@ def create_potential(config: dict, tk: float, strength: float = None, width: flo
     common_kwargs = {
         "tk": tk,
         "strength": strength if strength is not None else config["strength"],
-        "lambda_fn_type": config.get("lambda_type", "gaussian"),
+        "lambda_type": config.get("lambda_type", "gaussian"),
         "width": width if width is not None else default_width,
     }
 

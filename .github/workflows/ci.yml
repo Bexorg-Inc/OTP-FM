@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  pre-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,20 +17,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install linting tools
-        run: pip install black ruff
-
-      - name: Check formatting with Black
-        run: black --check .
-
-      - name: Lint with Ruff
-        run: ruff check .
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@v3.0.1
 
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Needed to push coverage badge to badges branch
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -44,9 +40,37 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,w2,experiments]"
+          pip install pytest-cov
 
-      - name: Run tests
-        run: pytest tests/ -v --tb=short
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v --tb=short --cov=otpfm --cov=experiments --cov-report=xml --cov-report=term
+          # Extract coverage percentage from XML
+          COVERAGE=$(python -c "import xml.etree.ElementTree as ET; print(f\"{float(ET.parse('coverage.xml').getroot().get('line-rate'))*100:.0f}\")")
+          echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
+          echo "Coverage: $COVERAGE%"
+
+      - name: Update coverage badge
+        if: matrix.python-version == '3.11' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Determine badge color based on coverage
+          COLOR=$(python -c "c=$COVERAGE; print('brightgreen' if c>=90 else 'green' if c>=80 else 'yellow' if c>=70 else 'orange' if c>=60 else 'red')")
+
+          # Create badge JSON
+          echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${COVERAGE}%\",\"color\":\"${COLOR}\"}" > coverage-badge.json
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create/update badges branch with just the badge file
+          git fetch origin badges || true
+          git checkout --orphan badges-temp
+          git reset --hard
+          cp $GITHUB_WORKSPACE/coverage-badge.json . 2>/dev/null || echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${COVERAGE}%\",\"color\":\"${COLOR}\"}" > coverage-badge.json
+          git add coverage-badge.json
+          git commit -m "Update coverage: ${COVERAGE}%"
+          git push origin badges-temp:badges --force
 
   build:
     runs-on: ubuntu-latest

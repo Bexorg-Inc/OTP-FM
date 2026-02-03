@@ -56,7 +56,7 @@ The installable package containing the core algorithm:
 ```python
 from otpfm import OTPFM
 from otpfm.potentials import W2InfPotential, W2Potential, EntropicW2Potential, KLPotential
-from otpfm.lambda_functions import GaussianLambda, DeltaLambda
+from otpfm.lambdas import GaussianLambda, DeltaLambda
 from otpfm.solvers import AndersonSolver
 from otpfm.networks import FlowNetMLP
 ```
@@ -157,7 +157,7 @@ Tutorial notebooks demonstrating the package:
 
 - **tks**: List of intermediate time points where marginal constraints are enforced
 - **strength**: Potential strength controlling how strongly paths are pulled toward intermediate marginals
-- **lambda_fn_type**: Time localization shape ("gaussian" default, "delta", "triangle", "box")
+- **lambda_type**: Time localization shape ("gaussian" default, "delta", "triangle", "box")
 - **width**: Half-width of lambda functions (default 0.2)
 - **otp_alpha**: Progressive loss weight (0 = MeanFlow only, 1 = full OT corrections)
 
@@ -176,7 +176,7 @@ src/otpfm/              # Installable package
 ├── __init__.py         # Exports OTPFM
 ├── otpfm.py            # Core model
 ├── potentials.py       # Potential types (W2InfPotential, etc.)
-├── lambda_functions.py # Time localizations
+├── lambdas.py # Time localizations
 ├── solvers.py          # Fixed-point solvers
 └── networks.py         # FlowNetMLP
 

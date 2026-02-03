@@ -11,7 +11,9 @@ from collections import OrderedDict
 import numpy as np
 import pytest
 import torch
-from fm_explore.gulfofmexico import GoMTrainer, dataset, plotting
+
+from experiments.gulfofmexico import GoMTrainer, plotting
+from experiments.gulfofmexico import data as dataset
 
 # ============================================================================
 # Fixtures
@@ -48,7 +50,8 @@ def gom_marginals_dict(synthetic_gom_data):
 @pytest.fixture(scope="module")
 def simple_model(device):
     """Create a simple OTPFM model for testing."""
-    from fm_explore.otpfm import OTPFM, IndependentPotential
+    from otpfm import OTPFM
+    from otpfm.potentials import W2InfPotential as IndependentPotential
 
     dim = 2
     tks = [0.5]
@@ -86,7 +89,6 @@ class TestDataset:
         ds = dataset.GoMMultiMarginalDataset(
             synthetic_gom_data,
             holdout_times=[1, 3, 5, 7],
-            shuffle_within_time=True,
         )
 
         # Check train times (with 10 times and holdout [1,3,5,7], train is [0,2,4,6,8,9])
@@ -131,17 +133,6 @@ class TestDataset:
         assert len(batch) == 6  # 6 training times (0,2,4,6,8,9)
         assert batch[0].shape[1] == 2  # 2D
 
-    def test_compute_ot_alignment(self, synthetic_gom_data):
-        """Test OT alignment computation."""
-        source = synthetic_gom_data[0]
-        target = synthetic_gom_data[2]
-
-        mapping = dataset.compute_ot_alignment(source, target, method="emd")
-
-        assert mapping.shape == (len(source),)
-        assert mapping.dtype == np.int64
-        assert mapping.max() < len(target)
-
     def test_compute_gom_ot_alignments(self, synthetic_gom_data):
         """Test computing OT alignments for all consecutive pairs."""
         train_times = [0, 2, 4, 6, 8]
@@ -158,6 +149,11 @@ class TestDataset:
         expected_keys = [(0, 2), (2, 4), (4, 6), (6, 8)]
         assert set(alignments.keys()) == set(expected_keys)
 
+        # Check alignment format
+        for (t_src, t_tgt), mapping in alignments.items():
+            assert isinstance(mapping, np.ndarray)
+            assert mapping.dtype == np.int64
+
     def test_dataset_with_ot_coupling(self, synthetic_gom_data):
         """Test dataset with OT coupling enabled."""
         # With holdout [1,3,5,7], train times are [0,2,4,6,8,9]
@@ -173,12 +169,30 @@ class TestDataset:
             ot_alignments=alignments,
         )
 
-        assert ds.use_ot_coupling
+        assert ds.use_ot
         assert len(ds) > 0
 
         # Check sample
         sample = ds[0]
         assert len(sample) == 6  # 6 training times
+
+    def test_dataset_reshuffle(self, synthetic_gom_data):
+        """Test dataset reshuffling."""
+        ds = dataset.GoMMultiMarginalDataset(
+            synthetic_gom_data,
+            holdout_times=[1, 3, 5, 7],
+        )
+
+        # Get sample before reshuffle
+        sample1 = [s.clone() for s in ds[0]]
+
+        # Reshuffle
+        ds.reshuffle()
+
+        # Sample might be different (probabilistic)
+        # Just check it doesn't crash
+        sample2 = ds[0]
+        assert len(sample2) == len(sample1)
 
 
 # ============================================================================
@@ -189,31 +203,17 @@ class TestDataset:
 class TestPlotting:
     """Tests for GoM plotting functions."""
 
-    def test_plot_scatter(self, gom_marginals_dict, tmp_path):
-        """Test scatter plot creation."""
-        save_path = tmp_path / "scatter.pdf"
-
-        fig = plotting.plot_scatter(
-            gom_marginals_dict,
-            times=[0, 2, 4],
-            save_path=save_path,
-            show=False,
-        )
-
-        assert fig is not None
-        assert save_path.exists()
-
-    def test_plot_trajectories(self, gom_marginals_dict, tmp_path):
-        """Test trajectory plot creation."""
+    def test_plot_2d_trajectories(self, gom_marginals_dict, tmp_path):
+        """Test 2D trajectory plot creation."""
         # Create dummy trajectories
         n_steps = 20
         n_samples = 50
-        trajectories = np.random.randn(n_steps, n_samples, 2).astype(np.float32)
+        trajectories = torch.randn(n_steps, n_samples, 2)
         t_eval = np.linspace(0, 1, n_steps)
 
         save_path = tmp_path / "trajectories.pdf"
 
-        fig = plotting.plot_trajectories(
+        plotting.plot_2d_trajectories(
             trajectories=trajectories,
             time_points=t_eval,
             ground_truth_marginals=gom_marginals_dict,
@@ -222,25 +222,18 @@ class TestPlotting:
             show=False,
         )
 
-        assert fig is not None
         assert save_path.exists()
 
-    def test_plot_spatial_marginals(self, tmp_path):
-        """Test spatial marginal comparison plot."""
-        generated = np.random.randn(100, 2).astype(np.float32)
-        ground_truth = np.random.randn(100, 2).astype(np.float32)
-
+    def test_plot_spatial_marginals(self, gom_marginals_dict, tmp_path):
+        """Test spatial marginal plot creation."""
         save_path = tmp_path / "spatial.pdf"
 
-        fig = plotting.plot_spatial_marginals(
-            generated=generated,
-            ground_truth=ground_truth,
-            time_idx=3,
+        plotting.plot_spatial_marginals(
+            marginals=gom_marginals_dict,
             save_path=save_path,
             show=False,
         )
 
-        assert fig is not None
         assert save_path.exists()
 
 
@@ -270,13 +263,13 @@ class TestTrainer:
             lr=1e-3,
             epochs=2,
             marginals=gom_marginals_dict,
-            train_times=[0, 2, 4, 6, 8],
+            train_times=[0, 2, 4, 6, 8, 9],
             holdout_times=[1, 3, 5, 7],
             device=device,
         )
 
         assert trainer is not None
-        assert trainer.train_times == [0, 2, 4, 6, 8]
+        assert trainer.train_times == [0, 2, 4, 6, 8, 9]
         assert trainer.holdout_times == [1, 3, 5, 7]
 
     def test_trainer_short_training(
@@ -297,7 +290,7 @@ class TestTrainer:
             lr=1e-3,
             epochs=1,
             marginals=gom_marginals_dict,
-            train_times=[0, 2, 4, 6, 8],
+            train_times=[0, 2, 4, 6, 8, 9],
             holdout_times=[1, 3, 5, 7],
             eval_num_samples=50,
             device=device,

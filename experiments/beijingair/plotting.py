@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from experiments.common.plotting import COLOURS
+from experiments.plotting import COLOURS
 
 
 def plot_1d_trajectories(

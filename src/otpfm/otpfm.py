@@ -132,7 +132,7 @@ class OTPFM(nn.Module):
         for i, potential in enumerate(self.potentials.values()):
             if potential.width == "auto":
                 ave_dtk = (self.dtks[i] + self.dtks[i + 1]) / 2
-                potential.width = ave_dtk / 2
+                potential.set_width(ave_dtk / 2)
 
     def _precompute_x_time_deps(self):
         """

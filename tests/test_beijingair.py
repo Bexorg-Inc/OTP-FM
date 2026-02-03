@@ -11,7 +11,9 @@ from collections import OrderedDict
 import numpy as np
 import pytest
 import torch
-from fm_explore.beijingair import BeijingTrainer, dataset, plotting
+
+from experiments.beijingair import BeijingTrainer, plotting
+from experiments.beijingair import data as dataset
 
 # ============================================================================
 # Fixtures
@@ -50,7 +52,8 @@ def beijing_marginals_dict(synthetic_beijing_data):
 @pytest.fixture(scope="module")
 def simple_model(device):
     """Create a simple OTPFM model for testing."""
-    from fm_explore.otpfm import OTPFM, IndependentPotential
+    from otpfm import OTPFM
+    from otpfm.potentials import W2InfPotential as IndependentPotential
 
     dim = 1
     tks = [0.5]
@@ -83,34 +86,25 @@ def simple_model(device):
 class TestDataset:
     """Tests for Beijing dataset loading and preprocessing."""
 
-    def test_get_3msbm_train_holdout_times(self):
-        """Test 3MSBM train/holdout split."""
-        train_times, holdout_times = dataset.get_3msbm_train_holdout_times(n_quarters=25)
+    def test_default_times_constants(self):
+        """Test default train/holdout time constants."""
+        # Check no overlap between train and holdout
+        assert len(set(dataset.DEFAULT_TRAIN_TIMES) & set(dataset.DEFAULT_HOLDOUT_TIMES)) == 0
 
-        # Check no overlap
-        assert len(set(train_times) & set(holdout_times)) == 0
+        # Check all times covered
+        all_covered = set(dataset.DEFAULT_TRAIN_TIMES) | set(dataset.DEFAULT_HOLDOUT_TIMES)
+        assert all_covered == set(dataset.ALL_TIMES)
 
-        # Check train times match expected pattern
-        assert train_times == [0, 2, 6, 8, 12, 14, 18, 20, 24]
-
-    def test_get_3msbm_train_holdout_times_fewer_quarters(self):
-        """Test split with fewer quarters."""
-        train_times, holdout_times = dataset.get_3msbm_train_holdout_times(n_quarters=13)
-
-        # Should still work
-        assert len(train_times) > 0
-        assert len(set(train_times) & set(holdout_times)) == 0
+        # Check expected holdout pattern
+        assert dataset.DEFAULT_HOLDOUT_TIMES == [2, 5, 8, 11]
 
     def test_beijing_multi_marginal_dataset(self, synthetic_beijing_data):
         """Test BeijingMultiMarginalDataset creation."""
-        train_times, holdout_times = dataset.get_3msbm_train_holdout_times(
-            n_quarters=len(synthetic_beijing_data)
-        )
+        train_times = dataset.DEFAULT_TRAIN_TIMES
 
         ds = dataset.BeijingMultiMarginalDataset(
             synthetic_beijing_data,
             train_times=train_times,
-            shuffle_within_time=True,
         )
 
         # Check dataset length
@@ -123,9 +117,7 @@ class TestDataset:
 
     def test_beijing_multi_marginal_dataset_iteration(self, synthetic_beijing_data):
         """Test iterating through dataset."""
-        train_times, _ = dataset.get_3msbm_train_holdout_times(
-            n_quarters=len(synthetic_beijing_data)
-        )
+        train_times = dataset.DEFAULT_TRAIN_TIMES
 
         ds = dataset.BeijingMultiMarginalDataset(
             synthetic_beijing_data,
@@ -140,13 +132,11 @@ class TestDataset:
 
     def test_create_beijing_dataloaders(self, synthetic_beijing_data):
         """Test dataloader creation."""
-        train_times, _ = dataset.get_3msbm_train_holdout_times(
-            n_quarters=len(synthetic_beijing_data)
-        )
+        train_times = dataset.DEFAULT_TRAIN_TIMES
 
         train_loader, val_loader = dataset.create_beijing_dataloaders(
             synthetic_beijing_data,
-            train_times=train_times,
+            holdout_times=dataset.DEFAULT_HOLDOUT_TIMES,
             batch_size=32,
             val_split=0.2,
         )
@@ -159,22 +149,9 @@ class TestDataset:
         assert len(batch) == len(train_times)
         assert batch[0].shape[1] == 1  # 1D
 
-    def test_compute_ot_alignment(self, synthetic_beijing_data):
-        """Test OT alignment computation."""
-        source = synthetic_beijing_data[0]
-        target = synthetic_beijing_data[2]
-
-        mapping = dataset.compute_ot_alignment(source, target, method="emd")
-
-        assert mapping.shape == (len(source),)
-        assert mapping.dtype == np.int64
-        assert mapping.max() < len(target)
-
     def test_compute_beijing_ot_alignments(self, synthetic_beijing_data):
         """Test computing OT alignments for consecutive training pairs."""
-        train_times, _ = dataset.get_3msbm_train_holdout_times(
-            n_quarters=len(synthetic_beijing_data)
-        )
+        train_times = dataset.DEFAULT_TRAIN_TIMES
 
         alignments = dataset.compute_beijing_ot_alignments(
             synthetic_beijing_data,
@@ -185,11 +162,14 @@ class TestDataset:
         # Should have alignment for each consecutive pair
         assert len(alignments) == len(train_times) - 1
 
+        # Check alignment format
+        for (t_src, t_tgt), mapping in alignments.items():
+            assert isinstance(mapping, np.ndarray)
+            assert mapping.dtype == np.int64
+
     def test_dataset_with_ot_coupling(self, synthetic_beijing_data):
         """Test dataset with OT coupling enabled."""
-        train_times, _ = dataset.get_3msbm_train_holdout_times(
-            n_quarters=len(synthetic_beijing_data)
-        )
+        train_times = dataset.DEFAULT_TRAIN_TIMES
 
         alignments = dataset.compute_beijing_ot_alignments(
             synthetic_beijing_data,
@@ -202,7 +182,7 @@ class TestDataset:
             ot_alignments=alignments,
         )
 
-        assert ds.use_ot_coupling
+        assert ds.use_ot
         assert len(ds) > 0
 
         # Check sample
@@ -211,14 +191,11 @@ class TestDataset:
 
     def test_dataset_reshuffle(self, synthetic_beijing_data):
         """Test dataset reshuffling."""
-        train_times, _ = dataset.get_3msbm_train_holdout_times(
-            n_quarters=len(synthetic_beijing_data)
-        )
+        train_times = dataset.DEFAULT_TRAIN_TIMES
 
         ds = dataset.BeijingMultiMarginalDataset(
             synthetic_beijing_data,
             train_times=train_times,
-            shuffle_within_time=True,
         )
 
         # Get sample before reshuffle
@@ -241,91 +218,39 @@ class TestDataset:
 class TestPlotting:
     """Tests for Beijing plotting functions."""
 
-    def test_plot_scatter(self, beijing_marginals_dict, tmp_path):
-        """Test distribution histogram plot."""
-        save_path = tmp_path / "distributions.pdf"
-
-        fig = plotting.plot_scatter(
-            beijing_marginals_dict,
-            times=[0, 2, 4],
-            save_path=save_path,
-            show=False,
-        )
-
-        assert fig is not None
-        assert save_path.exists()
-
-    def test_plot_pm25_kde(self, beijing_marginals_dict, tmp_path):
-        """Test KDE plot."""
-        save_path = tmp_path / "kde.pdf"
-
-        fig = plotting.plot_pm25_kde(
-            beijing_marginals_dict,
-            times=[0, 2, 4, 6],
-            save_path=save_path,
-            show=False,
-        )
-
-        assert fig is not None
-        assert save_path.exists()
-
-    def test_plot_pm25_evolution(self, beijing_marginals_dict, tmp_path):
-        """Test evolution time series plot."""
+    def test_plot_1d_trajectories(self, beijing_marginals_dict, tmp_path):
+        """Test 1D trajectory plotting."""
         # Create dummy trajectories
         n_steps = 20
         n_samples = 50
-        trajectories = np.random.randn(n_steps, n_samples, 1).astype(np.float32)
+        trajectories = torch.randn(n_steps, n_samples, 1)
         t_eval = np.linspace(0, 1, n_steps)
 
-        save_path = tmp_path / "evolution.pdf"
+        save_path = tmp_path / "trajectories.pdf"
 
-        fig = plotting.plot_pm25_evolution(
+        plotting.plot_1d_trajectories(
             trajectories=trajectories,
             time_points=t_eval,
             ground_truth_marginals=beijing_marginals_dict,
-            train_times=[0, 2, 4, 6, 8],
+            train_times=dataset.DEFAULT_TRAIN_TIMES,
             num_trajectories=20,
             save_path=save_path,
             show=False,
         )
 
-        assert fig is not None
         assert save_path.exists()
 
-    def test_plot_density_comparison_1d(self, tmp_path):
-        """Test 1D density comparison plot."""
-        generated = np.random.randn(100, 1).astype(np.float32)
-        ground_truth = np.random.randn(100, 1).astype(np.float32)
+    def test_plot_pm25_distributions(self, beijing_marginals_dict, tmp_path):
+        """Test PM2.5 distribution histogram plot."""
+        save_path = tmp_path / "distributions.pdf"
 
-        save_path = tmp_path / "density.pdf"
-
-        fig = plotting.plot_density_comparison_1d(
-            generated=generated,
-            ground_truth=ground_truth,
-            time_idx=3,
+        plotting.plot_pm25_distributions(
+            marginals=beijing_marginals_dict,
+            train_times=dataset.DEFAULT_TRAIN_TIMES,
             save_path=save_path,
             show=False,
         )
 
-        assert fig is not None
-        assert save_path.exists()
-
-    def test_plot_kde_comparison(self, tmp_path):
-        """Test KDE comparison plot."""
-        generated = np.random.randn(100, 1).astype(np.float32)
-        ground_truth = np.random.randn(100, 1).astype(np.float32)
-
-        save_path = tmp_path / "kde_compare.pdf"
-
-        fig = plotting.plot_kde_comparison(
-            generated=generated,
-            ground_truth=ground_truth,
-            time_idx=5,
-            save_path=save_path,
-            show=False,
-        )
-
-        assert fig is not None
         assert save_path.exists()
 
 
@@ -341,13 +266,12 @@ class TestTrainer:
         self, simple_model, synthetic_beijing_data, beijing_marginals_dict, tmp_path, device
     ):
         """Test trainer initialization."""
-        train_times, holdout_times = dataset.get_3msbm_train_holdout_times(
-            n_quarters=len(synthetic_beijing_data)
-        )
+        train_times = dataset.DEFAULT_TRAIN_TIMES
+        holdout_times = dataset.DEFAULT_HOLDOUT_TIMES
 
         train_loader, val_loader = dataset.create_beijing_dataloaders(
             synthetic_beijing_data,
-            train_times=train_times,
+            holdout_times=holdout_times,
             batch_size=32,
         )
 
@@ -372,13 +296,12 @@ class TestTrainer:
         self, simple_model, synthetic_beijing_data, beijing_marginals_dict, tmp_path, device
     ):
         """Test running a few training steps."""
-        train_times, holdout_times = dataset.get_3msbm_train_holdout_times(
-            n_quarters=len(synthetic_beijing_data)
-        )
+        train_times = dataset.DEFAULT_TRAIN_TIMES
+        holdout_times = dataset.DEFAULT_HOLDOUT_TIMES
 
         train_loader, val_loader = dataset.create_beijing_dataloaders(
             synthetic_beijing_data,
-            train_times=train_times,
+            holdout_times=holdout_times,
             batch_size=32,
         )
 

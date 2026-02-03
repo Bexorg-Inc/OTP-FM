@@ -1,1 +1,1 @@
-# Tests for fm_explore
+# Tests for OTP-FM
