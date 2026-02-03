@@ -20,6 +20,14 @@ A PyTorch library for training flow matching models with intermediate marginal c
 - [Reproducing Experiments](#reproducing-experiments)
 
 
+## Repo TODOs
+
+- [ ] Docs
+- [ ] Interactive page for tuning exact Gaussian potentials (need to solve OTP-FM approximation for this)
+- [ ] Fix plots
+- [ ] Animation?
+- [ ] Website?
+
 ## Overview
 
 OTP-FM extends vanilla conditional flow matching (CFM) between endpoint marginals to incorporate intermediate marginal constraints as well.
@@ -96,7 +104,7 @@ model = OTPFM(
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 n_epochs = 100
-iterations_per_epoch = 50  # Number of batches per epoch
+iterations_per_epoch = 50
 
 # This controls transition from vanilla flow matching (alpha=0) to full OTP-FM (alpha=1)
 otp_alpha_schedule = Curriculum(total_iterations=n_epochs * iterations_per_epoch)  # Sigmoid schedule by default
@@ -139,12 +147,12 @@ with torch.no_grad():
 
 ### Potential Types
 
-OTP-FM supports potentials based on different statistical distances:
+OTP-FM supports multiple potentials based on different statistical distances:
 
 ```python
 from otpfm.potentials import (
-    W2InfPotential,          # Random coupling between samples, fastest and default recommendation for most applications
-    W2Potential,             # Exact Wasserstein-2 (requires pot)
+    W2InfPotential,          # Random coupling between samples; fastest and default recommendation
+    W2Potential,             # Exact Wasserstein-2 (requires pot); usually better to use W2InfPotential with pre-computed OT couplings
     MMDRBFPotential,         # MMD with RBF kernel
     KLPotential,             # KL divergence with score estimation
 )
@@ -159,7 +167,7 @@ tks = [0.1, 0.5, 0.7]  # Intermediate time points
 potentials = OrderedDict({
     tks[0]: W2InfPotential(tk=tks[0], strength=500.0, lambda_type='box', width=0.1),
     tks[1]: W2InfPotential(tk=tks[1], strength=400.0, lambda_type='triangle', width=0.2),
-    tks[1]: W2InfPotential(tk=tks[1], strength=100.0, lambda_type='gaussian', width=0.05),
+    tks[2]: W2InfPotential(tk=tks[2], strength=100.0, lambda_type='gaussian', width=0.05),
 })
 ```
 
@@ -198,10 +206,6 @@ If you use this code in your research, please cite:
 ```
 TODO
 ```
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
 
 ## Reproducing Experiments
 
