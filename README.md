@@ -1,5 +1,12 @@
 # OTP-FM: Multimarginal flow matching (FM) with optimal transport potentials (OTP)
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/Bexorg-Inc/otpfm/actions/workflows/ci.yml/badge.svg)](https://github.com/Bexorg-Inc/otpfm/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Bexorg-Inc/otpfm/badges/coverage-badge.json)](https://github.com/Bexorg-Inc/otpfm/actions/workflows/ci.yml)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+
 A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials".
 
 - [Overview](#overview)
