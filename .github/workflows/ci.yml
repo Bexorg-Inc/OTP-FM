@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  pre-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,14 +17,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install linting tools
-        run: pip install black ruff
-
-      - name: Check formatting with Black
-        run: black --check .
-
-      - name: Lint with Ruff
-        run: ruff check .
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@v3.0.1
 
   test:
     runs-on: ubuntu-latest
