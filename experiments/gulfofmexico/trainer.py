@@ -192,7 +192,7 @@ class GoMTrainer(Trainer):
         all_times = sorted(self.marginals.keys())
         gt_marginals = {t: self.marginals[t] for t in all_times}
 
-        plotting.plot_2d_trajectories(
+        plotting.plot_trajectories(
             trajectories=trajectories,
             time_points=self.trajectory_t_eval,
             ground_truth_marginals=gt_marginals,
