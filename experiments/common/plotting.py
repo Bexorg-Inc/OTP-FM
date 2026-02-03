@@ -42,6 +42,7 @@ COLOURS = {
     "olive": "#606C38",
     "forest": "#2D6A4F",
     # Blues
+    "darkblue": "#111D4A",
     "blue": "#457B9D",
     "skyblue": "#89C2D9",
     "navy": "#1D3557",

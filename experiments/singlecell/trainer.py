@@ -293,14 +293,7 @@ class EBTrainer(Trainer):
     def post_training(self, show: bool = False, create_animation: bool = True) -> Path:
         """Run post-training tasks."""
         self._compute_metrics(epoch=self.epochs, do_mmd=True)
-
-        # Plot losses
-        self.plot_losses(show=show)
-        self.save_losses_csv()
-
-        # Save final model
-        save_path = self.save_checkpoint("model.pt")
-        self.logger.info(f"Model saved to {save_path}")
+        save_path = super().post_training(show=show)
 
         # Plot trajectories
         if self.marginals is not None and self.epoch_trajectories:

@@ -135,7 +135,7 @@ class Trainer:
         self.curriculum = Curriculum(
             total_iterations=self.total_steps,
             schedule=otp_alpha_type,
-            slope=otp_alpha_slope,
+            slope=2 * otp_alpha_slope,  # need to scale to match with old definitions
             midpoint=0.5 * otp_alpha_mean_scale,
         )
 
@@ -345,7 +345,7 @@ class Trainer:
 
     def plot_losses(self, log: bool = False, show: bool = False) -> None:
         """Plot training and validation losses."""
-        plotting.plot_losses_otp(
+        plotting.plot_losses(
             self.losses,
             name="losses" + ("_log" if log else ""),
             plot_dir=self.save_dir,

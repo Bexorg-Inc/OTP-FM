@@ -258,9 +258,7 @@ class BeijingTrainer(Trainer):
         self.logger.info(" ".join(log_parts))
 
     def post_training(self, show: bool = False, create_animation: bool = True) -> Path:
-        self.plot_losses(show=show)
-        self.save_losses_csv()
-        save_path = self.save_checkpoint("model.pt")
+        save_path = super().post_training(show=show)
 
         if self.marginals is not None and self.epoch_trajectories:
             self._plot_final_trajectories()
