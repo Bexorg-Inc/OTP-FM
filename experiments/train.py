@@ -518,15 +518,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="Train OTP-FM on various datasets",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=dedent(
-            """
+        epilog=dedent("""
             Examples:
               python experiments/train.py --dataset singlecell
               python experiments/train.py --dataset singlecell --potential W2Inf
               python experiments/train.py --dataset gulfofmexico --potential KL --epochs 500
               python experiments/train.py --list-options
-        """
-        ),
+        """),
     )
 
     # Main arguments

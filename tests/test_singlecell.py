@@ -535,9 +535,7 @@ class TestIntegration:
         tks = [0.33, 0.67]
         potentials = OrderedDict()
         for tk in tks:
-            potentials[tk] = MMDRBFPotential(
-                tk=tk, strength=1.0, lambda_type="gaussian", width=0.2
-            )
+            potentials[tk] = MMDRBFPotential(tk=tk, strength=1.0, lambda_type="gaussian", width=0.2)
 
         model = OTPFM(
             d=dim,
@@ -627,9 +625,7 @@ class TestIntegration:
         tks = [0.33, 0.67]
         potentials = OrderedDict()
         for tk in tks:
-            potentials[tk] = MMDRBFPotential(
-                tk=tk, strength=1.0, lambda_type="gaussian", width=0.2
-            )
+            potentials[tk] = MMDRBFPotential(tk=tk, strength=1.0, lambda_type="gaussian", width=0.2)
 
         new_model = OTPFM(
             d=dim,
