@@ -50,12 +50,11 @@ class Trainer:
         otp_alpha_mean_scale: float = 1.0,
         # Sampling/evaluation
         sampling_steps: int = 50,
-        sampling_method: str = "consistency",
         ema_eval: bool = True,
+        traj_skips: int | None = None,
         # Model
         potentials: OrderedDict | None = None,
         device: str = "cpu",
-        traj_skips: int | None = None,
     ):
         """
         Initialize the trainer.
@@ -74,7 +73,6 @@ class Trainer:
             otp_alpha_slope: Slope for sigmoid schedule
             otp_alpha_mean_scale: Mean scale for sigmoid schedule (default: 1.0)
             sampling_steps: Number of steps for trajectory sampling
-            sampling_method: Sampling method ("consistency" or "ode")
             ema_eval: Whether to use EMA model for evaluation
             potentials: OrderedDict mapping tk -> Potential. If None, uses model.potentials.
             device: Device to train on ("cpu" or "cuda")
@@ -95,7 +93,6 @@ class Trainer:
 
         # Sampling/evaluation
         self.sampling_steps = sampling_steps
-        self.sampling_method = sampling_method
         self.ema_eval = ema_eval
 
         # Use provided potentials or get from model
@@ -137,7 +134,7 @@ class Trainer:
         self.curriculum = Curriculum(
             total_iterations=self.total_steps,
             schedule=otp_alpha_type,
-            slope=2 * otp_alpha_slope,  # need to scale to match with old definitions
+            slope=2 * otp_alpha_slope,  # scaling for backward compatibility with old definitions
             midpoint=0.5 * otp_alpha_mean_scale,
         )
 

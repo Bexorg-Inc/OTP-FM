@@ -36,10 +36,8 @@ class GaussianTrainer(Trainer):
         val_loader: DataLoader,
         save_dir: Path,
         lr: float,
-        x0s_for_trajectories: Tensor,
-        unnormalize_fn: Callable[[Tensor], Tensor] | None = None,
-        x0s_transform_fn: Callable[[Tensor], Tensor] | None = None,
-        # Training parameters (passed to base Trainer)
+        x0s_for_trajectories: Tensor,  # Gaussian-specific
+        # Training parameters
         epochs: int = 10,
         optimizer: str = "adam",
         grad_clip: float = 0.0,
@@ -51,50 +49,31 @@ class GaussianTrainer(Trainer):
         # Sampling/evaluation
         sampling_steps: int = 50,
         ema_eval: bool = True,
-        eval_num_steps: list[int] | None = None,
         traj_skips: int | None = None,
-        # Gaussian-specific
-        plot_kwargs: dict[str, Any] | None = None,
+        # Model
         potentials: OrderedDict | None = None,
+        device: str = "cpu",
+        # Gaussian-specific
+        unnormalize_fn: Callable[[Tensor], Tensor] | None = None,
+        x0s_transform_fn: Callable[[Tensor], Tensor] | None = None,
+        plot_kwargs: dict[str, Any] | None = None,
+        eval_num_steps: list[int] | None = None,
         eval_samples: Tensor | None = None,
         ot_coupling: bool = False,
-        device: str = "cpu",
         # Compatibility with unified train.py (ignored)
-        marginals=None,
-        scaler=None,
-        holdout_times=None,
-        train_times=None,
-        eval_n_steps=None,
-        eval_num_samples=None,
+        **kwargs,
     ):
         """
         Initialize the Gaussian trainer.
 
-        Args:
-            model: The OTP Flow Matching model to train
-            train_loader: DataLoader for training data
-            val_loader: DataLoader for validation data
-            save_dir: Directory to save checkpoints and plots
-            lr: Learning rate
-            x0s_for_trajectories: Initial points for trajectory visualization
+        Gaussian-specific Args:
+            x0s_for_trajectories: Initial points for trajectory visualization (standard normal samples)
             unnormalize_fn: Function to unnormalize trajectory data for plotting
-            x0s_transform_fn: Function to transform x0s to model input space
-            epochs: Number of training epochs
-            optimizer: Optimizer type ("adam", "sgd", "rmsprop")
-            grad_clip: Gradient clipping norm (0 = disabled)
-            do_otp: Whether to apply OTP corrections during training
-            otp_alpha_type: Progressive loss weight type ("sigmoid", "0", "1")
-            otp_alpha_slope: Slope for sigmoid schedule
-            otp_alpha_mean_scale: Mean scale for sigmoid schedule
-            sampling_steps: Number of steps for trajectory sampling
-            ema_eval: Whether to use EMA model for evaluation
-            eval_num_steps: List of step counts for evaluation plots
-            traj_skips: Skip epochs when saving trajectories (None = auto)
-            plot_kwargs: Kwargs for plot_trajectories_middle_marginal_1d
-            potentials: OrderedDict mapping tk -> Potential
+            x0s_transform_fn: Function to transform standard normal x0s to model input space
+            plot_kwargs: Kwargs for plotting.plot_trajectories_middle_marginal_1d
+            eval_num_steps: List of # of steps for evaluation plots
             eval_samples: Samples for evaluation
             ot_coupling: Whether using OT coupling
-            device: Device to train on
         """
         super().__init__(
             model=model,
@@ -263,7 +242,7 @@ class GaussianTrainer(Trainer):
         if not self.potentials:
             return
 
-        otp_alpha = self.otp_alpha_func(epoch * len(self.train_loader))
+        otp_alpha = self.curriculum(epoch * len(self.train_loader))
 
         if batch is None:
             batch = self.eval_samples
@@ -287,12 +266,13 @@ class GaussianTrainer(Trainer):
         )
 
     @torch.no_grad()
-    def plot_trajectories(self, num_samples: int = 200) -> None:
+    def plot_trajectories(self, num_samples: int = 200, show: bool = False) -> None:
         """
         Evaluate model by plotting trajectories at various step counts.
 
         Args:
             num_samples: Number of samples to use for visualization
+            show: Whether to display the plot
         """
         if not self.plot_kwargs:
             self.logger.info("No plot_kwargs provided, skipping evaluation plots")
@@ -321,7 +301,7 @@ class GaussianTrainer(Trainer):
                 name=f"trajectories_numsteps_{num_steps}",
                 title=rd,
                 plot_dir=self.save_dir,
-                show=num_steps in [1, 50],
+                show=show and (num_steps in [1, 50]),
             )
 
     def create_animations(self, num_samples: int = 200, duration: int = 500) -> None:
@@ -368,7 +348,7 @@ class GaussianTrainer(Trainer):
             )
 
     def post_training(
-        self, num_samples: int = 200, duration: int = 500, show: bool = False
+        self, num_samples: int = 200, duration: int = 500, show: bool = False, create_animation: bool = True
     ) -> Path:
         """
         Run all post-training tasks.
@@ -377,6 +357,7 @@ class GaussianTrainer(Trainer):
             num_samples: Number of samples for evaluation/animation
             duration: Duration per frame in animations (ms)
             show: Whether to display plots
+            create_animation: Whether to create animations
 
         Returns:
             Path to saved model checkpoint
@@ -386,7 +367,9 @@ class GaussianTrainer(Trainer):
         save_path = self.save_checkpoint("model.pt")
         self.logger.info(f"Model saved to {save_path}")
 
-        self.plot_trajectories(num_samples=num_samples)
-        self.create_animations(num_samples=num_samples, duration=duration)
+        self.plot_trajectories(num_samples=num_samples, show=show)
+
+        if create_animation:
+            self.create_animations(num_samples=num_samples, duration=duration)
 
         return save_path

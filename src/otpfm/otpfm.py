@@ -35,7 +35,7 @@ class OTPFM(nn.Module):
         flownet (nn.Module | None): Custom velocity network. If provided, flownet_args is ignored.
             Must implement forward(x, t, dt) -> v and optionally get_log_var(t, dt) -> log_var if lossfn is "weighted".
         flownet_args (dict): Arguments for the FlowNetMLP (ignored if flownet is provided).
-        consistency_loss (str): Consistency loss type. One of {"meanflow", "lsd"}. Default: "meanflow".
+        consistency_loss (str): Consistency loss type. One of {"meanflow", "imf", "lsd"}. Default: "meanflow".
         lossfn (str): Loss function type. One of {"mse", "adaptive", "weighted"}. Default: "adaptive".
         ema_ot (bool): Whether to use EMA model for X_tk predictions. Default: True.
         time_sampler (str): Time sampling strategy. Default: "uniform_scaled_marginal".
@@ -440,26 +440,22 @@ class OTPFM(nn.Module):
 
             # Accumulate corrections: sum over k of dV_tks[k] * x_time_dep_t1[k]
             X_t1_corr_total = (dV_tks * x_time_dep_t1).sum(dim=0)  # (bs, d)
+            # Apply accumulated corrections with otp_alpha
+            X_t1 = X_base_t1 + X_t1_corr_total * otp_alpha
 
-            if self.consistency_loss == "meanflow":
+            if self.consistency_loss in ["meanflow", "imf"]:
                 # (K, bs, 1)
                 v_time_dep_t1 = torch.stack(
                     [self.v_time_dep(potential, t1) for potential in potentials_list]
                 )
                 u_corr_t1_total = (dV_tks * v_time_dep_t1).sum(dim=0)  # (bs, d)
+                u_t1 = u_base + u_corr_t1_total * otp_alpha
             elif self.consistency_loss == "lsd":
                 # (K, bs, 1)
                 v_time_dep_t2 = torch.stack(
                     [self.v_time_dep(potential, t2) for potential in potentials_list]
                 )
                 u_corr_t2_total = (dV_tks * v_time_dep_t2).sum(dim=0)  # (bs, d)
-
-            # Apply accumulated corrections with otp_alpha
-            X_t1 = X_base_t1 + X_t1_corr_total * otp_alpha
-
-            if self.consistency_loss == "meanflow":
-                u_t1 = u_base + u_corr_t1_total * otp_alpha
-            elif self.consistency_loss == "lsd":
                 u_t2 = u_base + u_corr_t2_total * otp_alpha
         else:
             X_t1 = X_base_t1
@@ -472,7 +468,7 @@ class OTPFM(nn.Module):
             logger.debug(f"X_base_t1: {X_base_t1[0]}")
             logger.debug(f"u_base: {u_base[0]}")
             logger.debug(f"X_t1: {X_t1[0]}")
-            if self.consistency_loss == "meanflow":
+            if self.consistency_loss in ["meanflow", "imf"]:
                 logger.debug(f"u_t1: {u_t1[0]}")
             elif self.consistency_loss == "lsd":
                 logger.debug(f"u_t2: {u_t2[0]}")
@@ -480,6 +476,8 @@ class OTPFM(nn.Module):
         match self.consistency_loss:
             case "meanflow":
                 loss = self.meanflow_loss(X_t1, t1, t2, u_t1, self.v_func, debug=debug)[0]
+            case "imf":
+                loss = self.improved_meanflow_loss(X_t1, t1, t2, u_t1, self.v_func, debug=debug)[0]
             case "lsd":
                 loss = self.lsd_loss(X_t1, t1, t2, u_t2, self.v_func, debug=debug)[0]
             case _:
@@ -500,23 +498,23 @@ class OTPFM(nn.Module):
             t2 (Tensor, shape (batch_size)): end timepoint
             u_t1 (Tensor, shape (batch_size, *dim)): instantaneous velocity to learn at time t1
         """
-        drdr = torch.ones_like(t1)
-        dtdr = torch.zeros_like(t1)
+        ones = torch.ones_like(t1)
+        zeros = torch.zeros_like(t1)
 
         # Ensures full precision for JVP calculation
         with torch.amp.autocast("cuda", enabled=False):
-            v_pred, dvdr = torch.func.jvp(v_func, (X_t1, t1, t2), (u_t1, drdr, dtdr))
+            v_pred, dvdt1 = torch.func.jvp(v_func, (X_t1, t1, t2), (u_t1, ones, zeros))
 
             # Clamp dvdr to prevent loss explosion from extreme derivatives
-            dvdr_clamped = dvdr.clamp(-self.jvp_clamp, self.jvp_clamp)
+            dvdt1_clamped = dvdt1.clamp(-self.jvp_clamp, self.jvp_clamp)
 
             # switches MeanFlow formulation to privilege t1 instead of t2 (jumping forward instead of backward in time)
-            v_tgt = ((t2 - t1) * dvdr_clamped + u_t1).detach()  # no gradient through this
+            v_tgt = ((t2 - t1) * dvdt1_clamped + u_t1).detach()  # no gradient through this
 
             if debug:
                 logger.debug(f"v_pred: {v_pred[0]}")
                 logger.debug(f"v_tgt: {v_tgt[0]}")
-                logger.debug(f"dvdr: {dvdr[0]}, clamped: {dvdr_clamped[0]}")
+                logger.debug(f"dvdt1: {dvdt1[0]}, clamped: {dvdt1_clamped[0]}")
 
             # Get log_var for weighted loss (if enabled)
             log_var = None
@@ -526,6 +524,43 @@ class OTPFM(nn.Module):
             loss = self.get_loss(v_pred, v_tgt, log_var=log_var)
 
             return loss, v_pred
+
+    def improved_meanflow_loss(self, X_t1, t1, t2, u_t1, v_func: callable, debug: bool = False) -> Tensor:
+        """
+        Implements the Improved MeanFlow loss from Ref. [5].
+
+        [5]: 
+        """
+        ones = torch.ones_like(t1)
+        zeros = torch.zeros_like(t1)
+
+        # Ensures full precision for JVP calculation
+        with torch.amp.autocast("cuda", enabled=False):
+            v_pred_t1 = v_func(X_t1, t1, t1)  # marginal instantaneous velocity prediction from model
+            v_pred, dvdt1 = torch.func.jvp(v_func, (X_t1, t1, t2), (v_pred_t1, ones, zeros))
+
+            # Clamp dvdt1 to prevent loss explosion from extreme derivatives
+            # Detach to stop gradient through JVP
+            dvdt1_clamped = dvdt1.detach().clamp(-self.jvp_clamp, self.jvp_clamp)
+
+            # Re-parameterized output to regress against conditional instantaneous velocity
+            # Switches MeanFlow formulation to privilege t1 instead of t2 (jumping forward instead of backward in time)
+            U_t1 = v_pred - (t2 - t1) * dvdt1_clamped
+
+            if debug:
+                logger.debug(f"v_pred: {v_pred[0]}")
+                logger.debug(f"U_t1: {U_t1[0]}")
+                logger.debug(f"dvdt1: {dvdt1[0]}, clamped: {dvdt1_clamped[0]}")
+
+            # Get log_var for weighted loss (if enabled)
+            log_var = None
+            if self.lossfn == "weighted":
+                log_var = self.flownet.get_log_var(t1.squeeze(), (t2 - t1).squeeze())
+
+            loss = self.get_loss(U_t1, u_t1, log_var=log_var)
+
+            return loss, v_pred
+
 
     def lsd_loss(self, X_t1, t1, t2, u_t2, v_func: callable, debug: bool = False) -> Tensor:
         """
@@ -557,6 +592,8 @@ class OTPFM(nn.Module):
             loss = self.get_loss(v_pred, v_tgt, log_var=log_var)
 
             return loss, v_pred
+
+        
 
     def get_loss(self, y_pred, y_true, log_var: Tensor = None) -> Tensor:
         """

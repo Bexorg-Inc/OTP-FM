@@ -193,7 +193,7 @@ class EBTrainer(Trainer):
         else:
             batch = self._get_random_samples(n_samples)
 
-        otp_alpha = self.otp_alpha_func(epoch * len(self.train_loader))
+        otp_alpha = self.curriculum(epoch * len(self.train_loader))
 
         plot_target_vs_learned(
             model=self.model,
