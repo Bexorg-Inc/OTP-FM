@@ -4,32 +4,32 @@ Embryoid body dataset plotting functions.
 Author(s): Raghav Kansal
 """
 
-from pathlib import Path
-from typing import Optional
 import io
 import logging
+from pathlib import Path
 
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.colors import ListedColormap
+import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import ListedColormap
 from PIL import Image
-import torch
 from torch import Tensor
 from tqdm import tqdm
 
 from experiments import plotting
-from experiments.plotting import COLOURS, BORDER_COLOUR, save_plot, loss_args
+from experiments.plotting import BORDER_COLOUR, COLOURS, loss_args, save_plot
 
 logger = logging.getLogger(__name__)
 
 # LaTeX-style fonts
-plt.rcParams.update({
-    "mathtext.fontset": "cm",  # Computer Modern (LaTeX default)
-    "font.family": "serif",
-    "font.serif": ["cmr10", "Computer Modern Serif", "DejaVu Serif"],
-    "axes.formatter.use_mathtext": True,
-})
+plt.rcParams.update(
+    {
+        "mathtext.fontset": "cm",  # Computer Modern (LaTeX default)
+        "font.family": "serif",
+        "font.serif": ["cmr10", "Computer Modern Serif", "DejaVu Serif"],
+        "axes.formatter.use_mathtext": True,
+    }
+)
 
 # Color palette for time points
 TIME_COLORS = [
@@ -192,91 +192,21 @@ def plot_losses(
     save_plot(plot_dir, name, show)
 
 
-def create_trajectory_animation(
-    epoch_trajectories: list[np.ndarray],
-    ground_truth_marginals: dict[int, torch.Tensor],
-    trajectory_t_eval: np.ndarray,
-    save_path: Path,
-    traj_skips: int = 1,
-    num_trajectories: int = 100,
-    pcs: tuple[int, int] = (0, 1),
-    duration: int = 500,
-):
-    """
-    Create animated GIF of trajectory evolution across epochs.
-
-    Args:
-        epoch_trajectories: List of trajectory arrays (n_steps, n_samples, dim)
-        ground_truth_marginals: Dict of ground truth samples per time
-        trajectory_t_eval: Time points for trajectories
-        save_path: Path to save GIF
-        traj_skips: Number of epochs between saves
-        num_trajectories: Number of trajectories to show
-        pcs: PC indices to plot
-        duration: Frame duration in ms
-    """
-    frames = []
-    pc1, pc2 = pcs
-
-    for epoch_idx, trajectories in enumerate(tqdm(epoch_trajectories, desc="Creating animation")):
-        fig, ax = plt.subplots(figsize=(8, 6))
-
-        # Plot ground truth as background
-        for t, samples in ground_truth_marginals.items():
-            if isinstance(samples, torch.Tensor):
-                samples = samples.cpu().numpy()
-            ax.scatter(samples[:, pc1], samples[:, pc2], c="lightgray", alpha=0.1, s=1)
-
-        # Plot trajectories
-        n_plot = min(num_trajectories, trajectories.shape[1])
-        for i in range(n_plot):
-            ax.plot(
-                trajectories[:, i, pc1],
-                trajectories[:, i, pc2],
-                alpha=0.5,
-                linewidth=0.5,
-                color=COLOURS["bexgreen"],
-            )
-
-        ax.set_xlabel(f"PC{pc1 + 1}")
-        ax.set_ylabel(f"PC{pc2 + 1}")
-        ax.set_title(f"Epoch {epoch_idx * traj_skips}")
-
-        # Convert to image
-        buf = io.BytesIO()
-        plt.savefig(buf, format="png", bbox_inches="tight", dpi=100)
-        buf.seek(0)
-        img = Image.open(buf)
-        frames.append(img.copy())
-        plt.close(fig)
-        buf.close()
-
-    if frames:
-        durations = [duration * 5] + [duration] * (len(frames) - 2) + [duration * 10]
-        frames[0].save(
-            save_path,
-            save_all=True,
-            append_images=frames[1:],
-            duration=durations,
-            loop=0,
-        )
-
-
 def plot_pca_trajectories(
     trajectories: Tensor | np.ndarray,
     time_points: np.ndarray,
-    ground_truth_marginals: Optional[dict[int, Tensor]] = None,
-    plot_times: Optional[list[int]] = None,
+    ground_truth_marginals: dict[int, Tensor] | None = None,
+    plot_times: list[int] | None = None,
     pcs: tuple[int, int] = (0, 1),
     num_trajectories: int = 200,
     num_scatter_points: int = 2000,
     alpha_traj: float = 0.5,
     figsize: tuple[int, int] = (14, 6),
     title: str = None,
-    save_path: Optional[Path] = None,
+    save_path: Path | None = None,
     show: bool = True,
-    ot_samples: Optional[np.ndarray] = None,
-    ot_times: Optional[list[int]] = None,
+    ot_samples: np.ndarray | None = None,
+    ot_times: list[int] | None = None,
 ) -> plt.Figure:
     """
     Plot learned trajectories in PCA space with side-by-side comparison.
@@ -589,13 +519,13 @@ def plot_pca_trajectories(
 def plot_ot_trajectories(
     ot_samples: np.ndarray,
     gt_times: list[int],
-    ground_truth_marginals: Optional[dict[int, Tensor | np.ndarray]] = None,
+    ground_truth_marginals: dict[int, Tensor | np.ndarray] | None = None,
     pcs: tuple[int, int] = (0, 1),
     num_trajectories: int = 100,
     alpha_traj: float = 0.5,
     figsize: tuple[int, int] = (14, 6),
     title: str = "OT-Coupled Trajectories",
-    save_path: Optional[Path] = None,
+    save_path: Path | None = None,
     show: bool = True,
 ) -> plt.Figure:
     """
@@ -755,7 +685,7 @@ def plot_ot_trajectories_from_data(
     num_trajectories: int = 100,
     pcs: tuple[int, int] = (0, 1),
     title: str = "OT-Coupled Ground Truth Trajectories",
-    save_path: Optional[Path] = None,
+    save_path: Path | None = None,
     show: bool = True,
 ) -> plt.Figure:
     """
@@ -1022,8 +952,8 @@ def plot_method_comparison_pca(
     pcs_row2: tuple[int, int] = (2, 3),
     num_trajectories: int = 0,
     num_scatter_points: int = 2000,
-    figsize: Optional[tuple[int, int]] = None,
-    save_path: Optional[Path] = None,
+    figsize: tuple[int, int] | None = None,
+    save_path: Path | None = None,
     show: bool = False,
 ) -> plt.Figure:
     """
@@ -1050,7 +980,7 @@ def plot_method_comparison_pca(
     Returns:
         matplotlib Figure object
     """
-    from matplotlib.colors import ListedColormap, BoundaryNorm
+    from matplotlib.colors import BoundaryNorm, ListedColormap
 
     model_labels = {
         "MMFM": r"$\bf{MMFM}$",
@@ -1077,7 +1007,7 @@ def plot_method_comparison_pca(
         width_ratios=[1] * n_cols + [0.05],  # last is colorbar
         wspace=0.02,
         hspace=0.15,
-    ) 
+    )
 
     axes = np.array([[fig.add_subplot(gs[r, c]) for c in range(n_cols)] for r in range(n_rows)])
 
@@ -1149,7 +1079,9 @@ def plot_method_comparison_pca(
                 idx = np.random.choice(n_samples, num_trajectories, replace=False)
                 traj_lines = trajectories[idx]
             else:
-                traj_lines = trajectories[:num_trajectories] if num_trajectories > 0 else np.array([])
+                traj_lines = (
+                    trajectories[:num_trajectories] if num_trajectories > 0 else np.array([])
+                )
 
             # Plot trajectory lines
             for i in range(len(traj_lines)):
@@ -1218,9 +1150,7 @@ def plot_method_comparison_pca(
         sm, cax=cbar_ax, ticks=[i + 0.5 for i in range(len(times))], drawedges=False
     )
     cbar.ax.set_yticklabels([f"$t_{{{t}}}$" for t in times], fontsize=fontsize)
-    cbar.ax.tick_params(
-        axis="both", which="both", length=0, width=0, left=False, right=False
-    )
+    cbar.ax.tick_params(axis="both", which="both", length=0, width=0, left=False, right=False)
     cbar.set_label("Time marginal", rotation=270, labelpad=20, fontsize=fontsize)
     cbar.outline.set_visible(False)  # Remove colorbar border
     cbar.dividers.set_visible(False)  # Remove divider lines between colors
@@ -1260,7 +1190,7 @@ def plot_ablation_pca_split(
         output_path: Path to save figure
         methods_per_row: Number of methods per row (including GT)
     """
-    from matplotlib.colors import ListedColormap, BoundaryNorm
+    from matplotlib.colors import BoundaryNorm, ListedColormap
 
     fontsize = 16
 

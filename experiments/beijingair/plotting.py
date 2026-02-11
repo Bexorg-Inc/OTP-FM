@@ -4,18 +4,17 @@ Beijing air quality dataset plotting functions.
 Author(s): Raghav Kansal
 """
 
-from pathlib import Path
-from typing import Optional
 import logging
+from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 import numpy as np
+from matplotlib.colors import ListedColormap
 from torch import Tensor
 
 from experiments import plotting
-from experiments.plotting import COLOURS, save_plot, loss_args
 from experiments.beijingair.data import METRIC_TIMES
+from experiments.plotting import COLOURS, loss_args, save_plot
 
 logger = logging.getLogger(__name__)
 
@@ -120,12 +119,12 @@ def plot_losses(
 
 def plot_scatter(
     marginals: dict[int, Tensor | np.ndarray],
-    times: Optional[list[int]] = None,
+    times: list[int] | None = None,
     figsize: tuple[int, int] = (10, 6),
     alpha: float = 0.5,
     num_scatter: int = 100,
     title: str = None,
-    save_path: Optional[Path] = None,
+    save_path: Path | None = None,
     show: bool = True,
 ) -> plt.Figure:
     """
@@ -183,8 +182,8 @@ def plot_scatter(
 def plot_trajectories(
     trajectories: Tensor | np.ndarray,
     t_eval: np.ndarray | None = None,
-    ground_truth_marginals: Optional[dict[int, Tensor | np.ndarray]] = None,
-    plot_times: Optional[list[int]] = None,
+    ground_truth_marginals: dict[int, Tensor | np.ndarray] | None = None,
+    plot_times: list[int] | None = None,
     num_trajectories: int = 100,
     num_scatter: int = 100,
     figsize: tuple[int, int] = (10, 6),
@@ -192,7 +191,7 @@ def plot_trajectories(
     alpha_scatter: float = 0.5,
     plot_generated_scatter: bool = False,
     title: str = None,
-    save_path: Optional[Path] = None,
+    save_path: Path | None = None,
     show: bool = True,
 ) -> plt.Figure:
     """
@@ -263,7 +262,7 @@ def plot_trajectories(
                     label=f"t={time_idx}",
                     edgecolors="none",
                 )
-    
+
     if plot_generated_scatter and t_eval is not None:
         time_min = min(plot_times)
         time_max = max(plot_times)
@@ -272,13 +271,13 @@ def plot_trajectories(
             t_norm = (time_idx - time_min) / (time_max - time_min)
             # Find closest index in t_eval
             closest_idx = np.argmin(np.abs(t_eval - t_norm))
-            
+
             # Get generated points at this time (1D PM2.5 values)
             gen_points = trajectories[closest_idx, :num_scatter, 0]  # (num_scatter,)
             tvec = np.full(len(gen_points), t_norm)
-            
+
             ax.scatter(
-                (tvec * 12)+0.1,
+                (tvec * 12) + 0.1,
                 gen_points,
                 c=[TIME_COLORS[time_idx % len(TIME_COLORS)]],
                 s=20,
@@ -339,8 +338,9 @@ def create_trajectory_animation(
         duration: Duration per frame in ms
     """
     try:
-        from PIL import Image
         import io
+
+        from PIL import Image
     except ImportError:
         print("PIL not available, skipping animation creation")
         return

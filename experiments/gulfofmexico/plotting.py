@@ -4,27 +4,28 @@ Gulf of Mexico dataset plotting functions.
 Author(s): Raghav Kansal
 """
 
-from pathlib import Path
-from typing import Optional
 import logging
+from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 import numpy as np
+from matplotlib.colors import ListedColormap
 from torch import Tensor
 
 from experiments import plotting
-from experiments.plotting import COLOURS, BORDER_COLOUR, save_plot, loss_args
+from experiments.plotting import BORDER_COLOUR, COLOURS, loss_args, save_plot
 
 logger = logging.getLogger(__name__)
 
 # LaTeX-style fonts
-plt.rcParams.update({
-    "mathtext.fontset": "cm",  # Computer Modern (LaTeX default)
-    "font.family": "serif",
-    "font.serif": ["cmr10", "Computer Modern Serif", "DejaVu Serif"],
-    "axes.formatter.use_mathtext": True,
-})
+plt.rcParams.update(
+    {
+        "mathtext.fontset": "cm",  # Computer Modern (LaTeX default)
+        "font.family": "serif",
+        "font.serif": ["cmr10", "Computer Modern Serif", "DejaVu Serif"],
+        "axes.formatter.use_mathtext": True,
+    }
+)
 
 # Color palette for time points
 TIME_COLORS = [
@@ -109,12 +110,12 @@ def plot_losses(
 
 def plot_scatter(
     marginals: dict[int, Tensor | np.ndarray],
-    times: Optional[list[int]] = None,
+    times: list[int] | None = None,
     figsize: tuple[int, int] = (10, 8),
     alpha: float = 0.5,
     s: int = 10,
     title: str = None,
-    save_path: Optional[Path] = None,
+    save_path: Path | None = None,
     show: bool = True,
 ) -> plt.Figure:
     """
@@ -171,13 +172,13 @@ def plot_scatter(
 def plot_trajectories(
     trajectories: Tensor | np.ndarray,
     t_eval: np.ndarray | None = None,
-    ground_truth_marginals: Optional[dict[int, Tensor | np.ndarray]] = None,
-    plot_times: Optional[list[int]] = None,
+    ground_truth_marginals: dict[int, Tensor | np.ndarray] | None = None,
+    plot_times: list[int] | None = None,
     num_trajectories: int = 111,
     num_scatter: int = 111,
     figsize: tuple[int, int] = (10, 8),
     title: str = None,
-    save_path: Optional[Path] = None,
+    save_path: Path | None = None,
     show: bool = True,
     plot_generated_scatter: bool = False,
 ) -> plt.Figure:
@@ -250,10 +251,10 @@ def plot_trajectories(
             t_norm = (time_idx - time_min) / (time_max - time_min)
             # Find closest index in t_eval
             closest_idx = np.argmin(np.abs(t_eval - t_norm))
-            
+
             # Get generated points at this time
             gen_points = trajectories[closest_idx, :num_scatter]
-            
+
             ax.scatter(
                 gen_points[:, 0],
                 gen_points[:, 1],
@@ -288,11 +289,11 @@ def plot_trajectories(
 def plot_method_comparison(
     method_trajectories: dict[str, tuple[np.ndarray, np.ndarray]],
     ground_truth_marginals: dict[int, Tensor | np.ndarray],
-    plot_times: Optional[list[int]] = None,
+    plot_times: list[int] | None = None,
     num_trajectories: int = 111,
     num_scatter: int = 111,
     figsize_per_panel: tuple[float, float] = (4, 3.5),
-    save_path: Optional[Path] = None,
+    save_path: Path | None = None,
     show: bool = True,
 ) -> plt.Figure:
     """
@@ -313,7 +314,7 @@ def plot_method_comparison(
     Returns:
         matplotlib Figure object
     """
-    from matplotlib.colors import ListedColormap, BoundaryNorm
+    from matplotlib.colors import BoundaryNorm, ListedColormap
 
     model_labels = {
         "MMFM": r"$\bf{MMFM}$",
@@ -426,9 +427,7 @@ def plot_method_comparison(
         sm, cax=cbar_ax, ticks=[i + 0.5 for i in range(len(plot_times))], drawedges=False
     )
     cbar.ax.set_yticklabels([f"$t_{{{t}}}$" for t in plot_times], fontsize=fontsize)
-    cbar.ax.tick_params(
-        axis="both", which="both", length=0, width=0, left=False, right=False
-    )
+    cbar.ax.tick_params(axis="both", which="both", length=0, width=0, left=False, right=False)
     cbar.set_label("Time marginal", rotation=270, labelpad=20, fontsize=fontsize)
     cbar.outline.set_visible(False)
     cbar.dividers.set_visible(False)
@@ -470,8 +469,9 @@ def create_trajectory_animation(
         duration: Duration per frame in ms
     """
     try:
-        from PIL import Image
         import io
+
+        from PIL import Image
     except ImportError:
         print("PIL not available, skipping animation creation")
         return

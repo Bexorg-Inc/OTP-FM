@@ -152,7 +152,11 @@ def plot_losses(
             linestyle="-",
         )
         ax.semilogy(
-            val_epochs, losses["val_loss"], label="Val Loss", color=loss_args["loss_colour"], linestyle="--"
+            val_epochs,
+            losses["val_loss"],
+            label="Val Loss",
+            color=loss_args["loss_colour"],
+            linestyle="--",
         )
     else:
         ax.plot(
@@ -162,7 +166,13 @@ def plot_losses(
             color=loss_args["loss_colour"],
             linestyle="-",
         )
-        ax.plot(val_epochs, losses["val_loss"], label="Val Loss", color=loss_args["loss_colour"], linestyle="--")
+        ax.plot(
+            val_epochs,
+            losses["val_loss"],
+            label="Val Loss",
+            color=loss_args["loss_colour"],
+            linestyle="--",
+        )
 
     ax2 = ax.twinx()
     ax2.plot(
@@ -186,7 +196,7 @@ def plot_losses(
 
     if ret_ax is not None:
         return ret_ax
-    
+
     save_plot(plot_dir, name, show)
 
 
