@@ -218,8 +218,8 @@ class TestDataset:
 class TestPlotting:
     """Tests for Beijing plotting functions."""
 
-    def test_plot_1d_trajectories(self, beijing_marginals_dict, tmp_path):
-        """Test 1D trajectory plotting."""
+    def test_plot_trajectories(self, beijing_marginals_dict, tmp_path):
+        """Test trajectory plotting."""
         # Create dummy trajectories
         n_steps = 20
         n_samples = 50
@@ -228,11 +228,11 @@ class TestPlotting:
 
         save_path = tmp_path / "trajectories.pdf"
 
-        plotting.plot_1d_trajectories(
+        plotting.plot_trajectories(
             trajectories=trajectories,
-            time_points=t_eval,
+            t_eval=t_eval,
             ground_truth_marginals=beijing_marginals_dict,
-            train_times=dataset.DEFAULT_TRAIN_TIMES,
+            plot_times=dataset.DEFAULT_TRAIN_TIMES,
             num_trajectories=20,
             save_path=save_path,
             show=False,
@@ -240,13 +240,13 @@ class TestPlotting:
 
         assert save_path.exists()
 
-    def test_plot_pm25_distributions(self, beijing_marginals_dict, tmp_path):
-        """Test PM2.5 distribution histogram plot."""
-        save_path = tmp_path / "distributions.pdf"
+    def test_plot_scatter(self, beijing_marginals_dict, tmp_path):
+        """Test PM2.5 scatter plot."""
+        save_path = tmp_path / "scatter.pdf"
 
-        plotting.plot_pm25_distributions(
+        plotting.plot_scatter(
             marginals=beijing_marginals_dict,
-            train_times=dataset.DEFAULT_TRAIN_TIMES,
+            times=dataset.DEFAULT_TRAIN_TIMES,
             save_path=save_path,
             show=False,
         )

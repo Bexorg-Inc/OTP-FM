@@ -12,7 +12,7 @@ Datasets:
 
 Common utilities:
     from experiments.evaluation import compute_fgd, compute_mmd, compute_swd
-    from experiments.plotting import plot_losses_otp, plot_target_vs_learned
+    from experiments.plotting import plot_losses, plot_target_vs_learned
 """
 
 import sys

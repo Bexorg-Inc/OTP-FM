@@ -1,5 +1,5 @@
 """
-Plotting utilities for OTP-FM experiments.
+Common plotting functions for OTP-FM experiments.
 
 Author(s): Raghav Kansal
 """
@@ -42,6 +42,7 @@ COLOURS = {
     "olive": "#606C38",
     "forest": "#2D6A4F",
     # Blues
+    "darkblue": "#111D4A",
     "blue": "#457B9D",
     "skyblue": "#89C2D9",
     "navy": "#1D3557",
@@ -61,6 +62,14 @@ COLOURS = {
     "darkgray": "#4A5568",
     "charcoal": "#2D3748",
     "offwhite": "#F7F7F7",
+}
+
+BORDER_COLOUR = COLOURS["offwhite"]
+
+loss_args = {
+    "loss_colour": COLOURS["brightorange"],
+    "alpha_colour": COLOURS["bexpurple"],
+    "fontsize": 14,
 }
 
 # Default plot arguments
@@ -103,12 +112,13 @@ def save_plot(plot_dir: Path = None, name: str = None, show: bool = True, close:
         plt.close()
 
 
-def plot_losses_otp(
+def plot_losses(
     losses: dict,
     name: str = "losses",
     plot_dir: Path = None,
     log: bool = False,
     show: bool = False,
+    ax: plt.Axes = None,
 ):
     """
     Plot training losses and OTP alpha schedule.
@@ -119,12 +129,15 @@ def plot_losses_otp(
         plot_dir: Directory to save plot
         log: Whether to use log scale for losses
         show: Whether to display the plot
+        ax: Optional pre-existing axes to plot on
     """
-    loss_colour = COLOURS["brightorange"]
-    alpha_colour = COLOURS["bexpurple"]
-    fontsize = 14
+    fontsize = loss_args["fontsize"]
 
-    fig, ax = plt.subplots(figsize=(8, 8))
+    if ax is None:
+        ret_ax = None
+        fig, ax = plt.subplots(figsize=(8, 8))
+    else:
+        ret_ax = ax
 
     train_epochs = np.arange(1, len(losses["train_loss"]) + 1) - 0.5
     val_epochs = np.arange(0, len(losses["val_loss"]))
@@ -135,41 +148,54 @@ def plot_losses_otp(
             train_epochs,
             losses["train_loss"],
             label="Train Loss",
-            color=loss_colour,
+            color=loss_args["loss_colour"],
             linestyle="-",
         )
         ax.semilogy(
-            val_epochs, losses["val_loss"], label="Val Loss", color=loss_colour, linestyle="--"
+            val_epochs,
+            losses["val_loss"],
+            label="Val Loss",
+            color=loss_args["loss_colour"],
+            linestyle="--",
         )
     else:
         ax.plot(
             train_epochs,
             losses["train_loss"],
             label="Train Loss",
-            color=loss_colour,
+            color=loss_args["loss_colour"],
             linestyle="-",
         )
-        ax.plot(val_epochs, losses["val_loss"], label="Val Loss", color=loss_colour, linestyle="--")
+        ax.plot(
+            val_epochs,
+            losses["val_loss"],
+            label="Val Loss",
+            color=loss_args["loss_colour"],
+            linestyle="--",
+        )
 
     ax2 = ax.twinx()
     ax2.plot(
         otp_alpha[:, 0],
         otp_alpha[:, 1],
         label=r"$\alpha(i)$",
-        color=alpha_colour,
+        color=loss_args["alpha_colour"],
     )
     ax2.tick_params(axis="y")
     ax2.set_ylim(0, 1)
 
     ax.set_xlabel("Epoch", fontsize=fontsize)
-    ax.set_ylabel("Loss", color=loss_colour, fontsize=fontsize)
+    ax.set_ylabel("Loss", color=loss_args["loss_colour"], fontsize=fontsize)
     ax.set_ylim(min(0, *losses["train_loss"], *losses["val_loss"]))
     ax.set_xlim(0, len(losses["train_loss"]))
-    ax2.set_ylabel(r"$\alpha(i)$", color=alpha_colour, fontsize=fontsize)
+    ax2.set_ylabel(r"$\alpha(i)$", color=loss_args["alpha_colour"], fontsize=fontsize)
 
     lines, labels = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax.legend(lines + lines2, labels + labels2, loc="lower right", fontsize=fontsize - 2)
+
+    if ret_ax is not None:
+        return ret_ax
 
     save_plot(plot_dir, name, show)
 
@@ -406,7 +432,7 @@ def plot_target_vs_learned(
 
         for spine in ax.spines.values():
             spine.set_linewidth(0.5)
-            spine.set_color("#888888")
+            spine.set_color(BORDER_COLOUR)
 
         if idx == n_samples - 1 and K <= 4:
             ax.legend(fontsize=fontsize - 2, framealpha=0.9, edgecolor="none", loc="best")

@@ -29,6 +29,7 @@ DIR_NAME = "PRSA_Data_20130301-20170228"
 ALL_TIMES = list(range(13))
 DEFAULT_HOLDOUT_TIMES = [2, 5, 8, 11]
 DEFAULT_TRAIN_TIMES = [t for t in ALL_TIMES if t not in DEFAULT_HOLDOUT_TIMES]
+METRIC_TIMES = [f"t{i}" for i in ALL_TIMES if i != 0] + ["rest"]
 
 
 def download_beijing_data(data_dir: Path = Path("data/beijing")) -> Path:

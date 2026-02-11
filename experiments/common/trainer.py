@@ -4,7 +4,9 @@ Base Trainer class for OTP-FM experiments.
 Author(s): Raghav Kansal
 """
 
+import gc
 import logging
+import time
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
@@ -135,7 +137,7 @@ class Trainer:
         self.curriculum = Curriculum(
             total_iterations=self.total_steps,
             schedule=otp_alpha_type,
-            slope=otp_alpha_slope,
+            slope=2 * otp_alpha_slope,  # need to scale to match with old definitions
             midpoint=0.5 * otp_alpha_mean_scale,
         )
 
@@ -185,9 +187,12 @@ class Trainer:
 
         epoch_loss = 0.0
         ret_batch = None
+        slow_threshold = 2.0  # seconds — log batches slower than this
 
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch}")
         for i, batch in enumerate(pbar):
+            batch_t0 = time.perf_counter()
+
             # Zero gradients
             for opt in self.optimizers.values():
                 opt.zero_grad()
@@ -219,6 +224,16 @@ class Trainer:
             self.losses["otp_alpha"].append([self.global_step / len(self.train_loader), otp_alpha])
 
             self.global_step += 1
+
+            # Detect slow batches
+            batch_dt = time.perf_counter() - batch_t0
+            if batch_dt > slow_threshold:
+                self.logger.warning(
+                    f"Slow batch: epoch {epoch}, batch {i}/{len(self.train_loader)}, "
+                    f"took {batch_dt:.1f}s (GPU mem: "
+                    f"{torch.cuda.memory_allocated() / 1e9:.2f}GB allocated, "
+                    f"{torch.cuda.memory_reserved() / 1e9:.2f}GB reserved)"
+                )
 
             # Update progress bar
             pbar.set_postfix({"loss": f"{self._get_item(loss):.4f}"})
@@ -310,12 +325,20 @@ class Trainer:
         """
         self.on_train_start()
 
+        # Disable automatic GC during training to prevent mid-epoch pauses;
+        # we run it explicitly between epochs instead.
+        gc.disable()
+
         # Initial validation
         val_loss, batch = self.validate()
         self.losses["val_loss"].append(val_loss)
 
         for epoch in range(self.epochs):
             self.on_epoch_start(epoch, batch)
+
+            # Explicit GC between epochs (not during training)
+            gc.collect()
+            torch.cuda.empty_cache()
 
             # Training
             train_loss, batch = self.train_epoch(epoch)
@@ -334,6 +357,10 @@ class Trainer:
                 f"Epoch {epoch}: " f"train_loss={train_loss:.4f}, val_loss={val_loss:.4f}"
             )
 
+        # Re-enable GC after training
+        gc.enable()
+        gc.collect()
+
         self.on_train_end()
 
         self.logger.info(f"Training completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -345,7 +372,7 @@ class Trainer:
 
     def plot_losses(self, log: bool = False, show: bool = False) -> None:
         """Plot training and validation losses."""
-        plotting.plot_losses_otp(
+        plotting.plot_losses(
             self.losses,
             name="losses" + ("_log" if log else ""),
             plot_dir=self.save_dir,
