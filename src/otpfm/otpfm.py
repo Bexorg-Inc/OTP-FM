@@ -525,18 +525,22 @@ class OTPFM(nn.Module):
 
             return loss, v_pred
 
-    def improved_meanflow_loss(self, X_t1, t1, t2, u_t1, v_func: callable, debug: bool = False) -> Tensor:
+    def improved_meanflow_loss(
+        self, X_t1, t1, t2, u_t1, v_func: callable, debug: bool = False
+    ) -> Tensor:
         """
         Implements the Improved MeanFlow loss from Ref. [5].
 
-        [5]: 
+        [5]:
         """
         ones = torch.ones_like(t1)
         zeros = torch.zeros_like(t1)
 
         # Ensures full precision for JVP calculation
         with torch.amp.autocast("cuda", enabled=False):
-            v_pred_t1 = v_func(X_t1, t1, t1)  # marginal instantaneous velocity prediction from model
+            v_pred_t1 = v_func(
+                X_t1, t1, t1
+            )  # marginal instantaneous velocity prediction from model
             v_pred, dvdt1 = torch.func.jvp(v_func, (X_t1, t1, t2), (v_pred_t1, ones, zeros))
 
             # Clamp dvdt1 to prevent loss explosion from extreme derivatives
@@ -560,7 +564,6 @@ class OTPFM(nn.Module):
             loss = self.get_loss(U_t1, u_t1, log_var=log_var)
 
             return loss, v_pred
-
 
     def lsd_loss(self, X_t1, t1, t2, u_t2, v_func: callable, debug: bool = False) -> Tensor:
         """
@@ -592,8 +595,6 @@ class OTPFM(nn.Module):
             loss = self.get_loss(v_pred, v_tgt, log_var=log_var)
 
             return loss, v_pred
-
-        
 
     def get_loss(self, y_pred, y_true, log_var: Tensor = None) -> Tensor:
         """
