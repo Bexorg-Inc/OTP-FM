@@ -19,135 +19,29 @@ pixi shell
 
 All datasets are automatically downloaded during training. Storage locations:
 
-- **Single-cell (Embryoid Body)**: Downloads from TrajectoryNet repository
-- **Gulf of Mexico**: Downloads from GitHub
-- **Beijing Air Quality**: Downloads from UCI repository
+- **Single-cell (Embryoid Body)**: Downloads from the [TrajectoryNet repository](https://github.com/KrishnaswamyLab/TrajectoryNet/raw/master/data/eb_velocity_v5.npz)
+- **Gulf of Mexico**: Downloads from the [SB-IRR repository](https://github.com/YunyiShen/SB-Iterative-Reference-Refinement)
+- **Beijing Air Quality**: Downloads from the [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/501/beijing+multi+site+air+quality+data)
 - **Gaussians**: Generated synthetically
 
-## Running Experiments
-
-### 1. Gaussian Experiments
-
-Quick demonstration of OTP-FM on synthetic Gaussian data:
+## Reproducing paper results
 
 ```bash
-# Train OTP-FM on 1D Gaussians
-python experiments/train.py --config experiments/gaussian/configs/otpfm_1d.json
-
-# Train baseline (flow matching without potentials)
-python experiments/train.py --config experiments/gaussian/configs/baseline_1d.json
+python experiments/train.py --dataset {singlecell, beijingair, gulfofmexico} --potential {W2Inf, W2, MMD, KL}
 ```
 
-### 2. Single-cell Trajectory Inference
-
-Train on Embryoid Body (EB) differentiation data:
+This will automatically load the configurations used in the paper. For further tunable options, run:
 
 ```bash
-# OTP-FM with W2 potential
-python experiments/train.py --config experiments/singlecell/configs/otpfm_w2.json
-
-# OTP-FM with KL potential
-python experiments/train.py --config experiments/singlecell/configs/otpfm_kl.json
-
-# OTP-FM with MMD potential
-python experiments/train.py --config experiments/singlecell/configs/otpfm_mmd.json
+python experiments/train.py -h
 ```
-
-### 3. Gulf of Mexico (Ocean Currents)
-
-Train on ocean drifter data:
-
-```bash
-# OTP-FM
-python experiments/train.py --config experiments/gulfofmexico/configs/otpfm.json
-
-# Baseline
-python experiments/train.py --config experiments/gulfofmexico/configs/baseline.json
-```
-
-### 4. Beijing Air Quality
-
-Train on PM2.5 forecasting data:
-
-```bash
-# OTP-FM
-python experiments/train.py --config experiments/beijingair/configs/otpfm.json
-
-# Baseline
-python experiments/train.py --config experiments/beijingair/configs/baseline.json
-```
-
-## Evaluation and Comparison
-
-After training, evaluate models and generate comparison plots:
-
-```bash
-# Evaluate single-cell experiments
-python experiments/compare.py --dataset singlecell --trajectories-dir final_trajectories/
-
-# Evaluate all datasets
-python experiments/compare.py --all
-```
-
-This generates:
-- Metric tables (SWD, MMD, FGD, W2) in CSV and LaTeX format
-- PCA trajectory comparison plots
-- Multi-seed aggregation with mean ± std
-
-## Baseline Methods
-
-To run baseline comparisons (MMFM, 3MSBM):
-
-```bash
-# Setup baseline repositories
-cd experiments/baselines
-./setup.sh
-
-# Run MMFM baseline
-python run_mmfm.py --dataset singlecell
-
-# Run 3MSBM baseline
-python run_3msbm.py --dataset singlecell
-```
-
-See `experiments/baselines/README.md` for detailed setup instructions.
 
 ## Tutorial Notebooks
 
 Interactive tutorials demonstrating each experiment:
 
 1. `notebooks/01_quickstart_gaussians.ipynb` - Introduction with Gaussian data
-2. `notebooks/02_singlecell_eb.ipynb` - Single-cell trajectory inference
+2. `notebooks/02_singlecell_eb.ipynb` - Embryoid body single-cell trajectory inference
 3. `notebooks/03_gulf_of_mexico.ipynb` - Ocean current modeling
 4. `notebooks/04_beijing_airquality.ipynb` - Air quality forecasting
 5. `notebooks/05_exact_gaussian_solutions.ipynb` - Analytical solutions
-
-## Hardware Requirements
-
-- **Minimum**: 8GB GPU memory for single-cell/GoM/Beijing experiments
-- **Recommended**: 16GB+ GPU for larger batch sizes
-- **Gaussians**: Can run on CPU
-
-Training times (single NVIDIA A100):
-- Gaussians: ~5 minutes
-- Single-cell: ~30 minutes
-- Gulf of Mexico: ~20 minutes
-- Beijing Air Quality: ~15 minutes
-
-## Expected Results
-
-| Dataset | Metric | OTP-FM (W2) | OTP-FM (KL) | Baseline |
-|---------|--------|-------------|-------------|----------|
-| Single-cell | SWD ↓ | 0.XXX | 0.XXX | 0.XXX |
-| GoM | SWD ↓ | 0.XXX | 0.XXX | 0.XXX |
-| Beijing | SWD ↓ | 0.XXX | 0.XXX | 0.XXX |
-
-*Note: Exact values will vary slightly due to random initialization.*
-
-## Troubleshooting
-
-**Out of memory**: Reduce batch size in config file.
-
-**Slow training**: Enable mixed precision by adding `"mixed_precision": true` to config.
-
-**Missing data**: Check internet connection; datasets download automatically.

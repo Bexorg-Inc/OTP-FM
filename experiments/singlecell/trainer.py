@@ -93,7 +93,7 @@ class EBTrainer(Trainer):
 
         # Auto-compute traj_skips
         if traj_skips is None:
-            self.traj_skips = 1 if epochs <= 30 else max(1, math.ceil(epochs / 30))
+            self.traj_skips = 1 if epochs <= 10 else max(1, math.ceil(epochs / 10))
         else:
             self.traj_skips = traj_skips
 
@@ -132,7 +132,7 @@ class EBTrainer(Trainer):
         """Save initial state before training."""
         self._save_epoch_trajectories(epoch=0)
         self._plot_xtk_comparison(epoch=0)
-        self._compute_metrics(epoch=0)
+        self._compute_metrics(epoch=0, do_mmd=False)
 
     def on_epoch_start(self, epoch: int, batch: Tensor | None = None):
         """Reshuffle cell pairings."""
@@ -147,7 +147,7 @@ class EBTrainer(Trainer):
             self._save_epoch_trajectories(epoch=epoch + 1)
             self._plot_xtk_comparison(epoch=epoch + 1)
             if epoch != self.epochs - 1:
-                self._compute_metrics(epoch=epoch + 1, compute_mmd=False)
+                self._compute_metrics(epoch=epoch + 1, do_mmd=False)
 
     @torch.no_grad()
     def _save_epoch_trajectories(self, epoch: int):
@@ -370,17 +370,36 @@ class EBTrainer(Trainer):
             show=show,
         )
 
+    def _find_best_epoch_idx(self) -> int | None:
+        """Find the index (into metric lists) of the epoch with the lowest average of fgd_t1 and fgd_t3."""
+        fgd_t1 = self.losses["fgd_t1"]
+        fgd_t3 = self.losses["fgd_t3"]
+        n = min(len(fgd_t1), len(fgd_t3))
+        avg_fgd = [(fgd_t1[i] + fgd_t3[i]) / 2 for i in range(n)]
+        return int(np.argmin(avg_fgd))
+
     def append_to_master_csv(self, master_csv_path: Path | None = None):
-        """Append final metrics to master results CSV."""
+        """Append best-epoch metrics to master results CSV.
+
+        Selects the epoch with the lowest average of fgd_t1 and fgd_t3 (holdout times)
+        and saves all metrics from that epoch.
+        """
         if master_csv_path is None:
             master_csv_path = self.save_dir.parent.parent / "master_results.csv"
 
         model_dir = f"{self.save_dir.parent.name}/{self.save_dir.name}"
+        best_idx = self._find_best_epoch_idx()
 
-        # Build result row with final metrics
-        row = {"model_dir": model_dir}
+        if best_idx is None:
+            self.logger.warning("No fgd_t1/fgd_t3 metrics found, skipping master CSV")
+            return
 
-        # Add final metric values
+        metric_epochs = self.losses.get("metric_epochs", [])
+        best_epoch = metric_epochs[best_idx] if best_idx < len(metric_epochs) else best_idx
+
+        row = {"model_dir": model_dir, "best_epoch": best_epoch}
+
+        # Add all metric values from the best epoch
         for key in [
             "swd_t1",
             "swd_t2",
@@ -397,14 +416,19 @@ class EBTrainer(Trainer):
             "w2_t3",
             "w2_t4",
         ]:
-            if key in self.losses and self.losses[key]:
-                row[key] = self.losses[key][-1]
+            if key in self.losses and best_idx < len(self.losses[key]):
+                row[key] = self.losses[key][best_idx]
 
-        # Add training metrics
+        # Add training metrics from the best epoch (use closest available)
         if self.losses.get("train_loss"):
-            row["train_loss"] = self.losses["train_loss"][-1]
+            row["train_loss"] = self.losses["train_loss"][min(best_epoch, len(self.losses["train_loss"]) - 1)]
         if self.losses.get("val_loss"):
-            row["val_loss"] = self.losses["val_loss"][-1]
+            row["val_loss"] = self.losses["val_loss"][min(best_epoch, len(self.losses["val_loss"]) - 1)]
+
+        self.logger.info(
+            f"Best epoch: {best_epoch} "
+            f"(avg fgd_t1+t3 = {(row.get('fgd_t1', 0) + row.get('fgd_t3', 0)) / 2:.4f})"
+        )
 
         df_row = pd.DataFrame([row])
 

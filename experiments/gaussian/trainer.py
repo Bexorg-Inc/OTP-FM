@@ -60,8 +60,6 @@ class GaussianTrainer(Trainer):
         eval_num_steps: list[int] | None = None,
         eval_samples: Tensor | None = None,
         ot_coupling: bool = False,
-        # Compatibility with unified train.py (ignored)
-        **kwargs,
     ):
         """
         Initialize the Gaussian trainer.
