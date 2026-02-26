@@ -197,7 +197,11 @@ class OTPFM(nn.Module):
             ema_param.mul_(self.ema_decay).add_(param.data, alpha=1 - self.ema_decay)
 
     def v_func(self, x, t1, t2, net=None):
-        """Mean predicted velocity"""
+        """Mean predicted velocity. Implements either direct velocity prediction or x-prediction as in Refs. [6, 7].
+
+        [6]: Li and He (2025), "Back to Basics: Let Denoising Generative Models Denoise" (https://arxiv.org/abs/2511.13720)
+        [7]: Lu et. al. (2026), "One-step Latent-free Image Generation with Pixel Mean Flows" (https://arxiv.org/abs/2601.22158)
+        """
         dt = t2 - t1
         if net is None:
             net = self.flownet
@@ -553,7 +557,7 @@ class OTPFM(nn.Module):
         """
         Implements the Improved MeanFlow loss from Ref. [5].
 
-        [5]:
+        [5]: Geng et. al. (2026), "Improved Mean Flows: On the Challenges of Fastforward Generative Models" (https://arxiv.org/abs/2512.02012)
         """
         ones = torch.ones_like(t1)
         zeros = torch.zeros_like(t1)
