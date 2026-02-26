@@ -60,8 +60,6 @@ class GaussianTrainer(Trainer):
         eval_num_steps: list[int] | None = None,
         eval_samples: Tensor | None = None,
         ot_coupling: bool = False,
-        # Compatibility with unified train.py (ignored)
-        **kwargs,
     ):
         """
         Initialize the Gaussian trainer.
@@ -348,7 +346,11 @@ class GaussianTrainer(Trainer):
             )
 
     def post_training(
-        self, num_samples: int = 200, duration: int = 500, show: bool = False, create_animation: bool = True
+        self,
+        num_samples: int = 200,
+        duration: int = 500,
+        show: bool = False,
+        create_animation: bool = True,
     ) -> Path:
         """
         Run all post-training tasks.

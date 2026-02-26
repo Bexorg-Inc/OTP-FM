@@ -138,7 +138,7 @@ class Trainer:
             midpoint=0.5 * otp_alpha_mean_scale,
         )
 
-        # Animation settings
+        # Number of epochs to skip between saving checkpoints and model evaluation
         if traj_skips is None:
             if epochs <= 30:
                 self.traj_skips = 1
