@@ -421,9 +421,13 @@ class EBTrainer(Trainer):
 
         # Add training metrics from the best epoch (use closest available)
         if self.losses.get("train_loss"):
-            row["train_loss"] = self.losses["train_loss"][min(best_epoch, len(self.losses["train_loss"]) - 1)]
+            row["train_loss"] = self.losses["train_loss"][
+                min(best_epoch, len(self.losses["train_loss"]) - 1)
+            ]
         if self.losses.get("val_loss"):
-            row["val_loss"] = self.losses["val_loss"][min(best_epoch, len(self.losses["val_loss"]) - 1)]
+            row["val_loss"] = self.losses["val_loss"][
+                min(best_epoch, len(self.losses["val_loss"]) - 1)
+            ]
 
         self.logger.info(
             f"Best epoch: {best_epoch} "

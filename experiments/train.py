@@ -591,7 +591,12 @@ def main():
     parser.add_argument("--strength", type=float, help="Potential strength")
     parser.add_argument("--lossfn", type=str, help="Loss function")
     parser.add_argument("--consistency-loss", type=str, help="Consistency loss type")
-    parser.add_argument("--x-pred", action=argparse.BooleanOptionalAction, default=False, help="Enable x-prediction mode")
+    parser.add_argument(
+        "--x-pred",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable x-prediction mode",
+    )
 
     # Utility
     parser.add_argument(
