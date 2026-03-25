@@ -289,7 +289,7 @@ class GoMTrainer(Trainer):
 
         plotting.plot_trajectories(
             trajectories=trajectories,
-            time_points=self.trajectory_t_eval,
+            t_eval=self.trajectory_t_eval,
             ground_truth_marginals=gt_marginals,
             save_path=self.save_dir / "trajectories_2d.pdf",
             show=False,

@@ -278,11 +278,10 @@ class BeijingTrainer(Trainer):
         all_times = sorted(self.marginals.keys())
         gt_marginals = {t: self.marginals[t] for t in all_times}
 
-        plotting.plot_1d_trajectories(
+        plotting.plot_trajectories(
             trajectories=trajectories,
-            time_points=self.trajectory_t_eval,
+            t_eval=self.trajectory_t_eval,
             ground_truth_marginals=gt_marginals,
-            train_times=self.train_times,
             save_path=self.save_dir / "trajectories_1d.pdf",
             show=False,
         )
