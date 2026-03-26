@@ -142,7 +142,7 @@ class EBTrainer(Trainer):
         """Save initial state before training."""
         self._save_epoch_trajectories(epoch=0)
         self._plot_xtk_comparison(epoch=0)
-        self._compute_metrics(epoch=0, do_mmd=False)
+        self._compute_metrics(epoch=0, do_mmd=True)
 
     def on_epoch_start(self, epoch: int, batch: Tensor | None = None):
         """Reshuffle cell pairings."""
@@ -157,7 +157,7 @@ class EBTrainer(Trainer):
             self._save_epoch_trajectories(epoch=epoch + 1)
             self._plot_xtk_comparison(epoch=epoch + 1)
             if epoch != self.epochs - 1:
-                self._compute_metrics(epoch=epoch + 1, do_mmd=False)
+                self._compute_metrics(epoch=epoch + 1, do_mmd=True)
 
     @torch.no_grad()
     def _save_epoch_trajectories(self, epoch: int):
@@ -327,11 +327,17 @@ class EBTrainer(Trainer):
 
         self.losses["metric_epochs"].append(epoch)
 
-        # Log summary
+        # Log summary — show all computed metrics per time
+        metric_order = ["swd", "mmd", "fgd", "w1"]
         log_parts = [f"Epoch {epoch} metrics:"]
         for t in all_times:
-            if self.losses.get(f"w1_t{t}"):
-                log_parts.append(f"t{t}(W1={self.losses[f'w1_t{t}'][-1]:.3f})")
+            vals = []
+            for m in metric_order:
+                key = f"{m}_t{t}"
+                if self.losses.get(key):
+                    vals.append(f"{m.upper()}={self.losses[key][-1]:.4f}")
+            if vals:
+                log_parts.append(f"t{t}({', '.join(vals)})")
         self.logger.info(" ".join(log_parts))
 
     def post_training(self, show: bool = False, create_animation: bool = False) -> Path:

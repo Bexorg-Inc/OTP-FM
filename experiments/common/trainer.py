@@ -111,6 +111,18 @@ class Trainer:
         if self.potentials:
             self.logger.info(f"Potentials: {list(self.potentials.keys())}")
 
+        n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        self.logger.info(f"Model: {type(model).__name__} ({n_params:,} trainable params)")
+        if hasattr(model, "flownet"):
+            fn = model.flownet
+            self.logger.info(
+                f"  FlowNet: {getattr(fn, 'hidden_dim', '?')}d × "
+                f"{getattr(fn, 'num_hidden_layers', '?')} layers, "
+                f"residual_every={getattr(fn, 'residual_every', '?')}, "
+                f"dropout={getattr(fn, 'dropout_rate', getattr(fn, 'dropout', '?'))}, "
+                f"layernorm={getattr(fn, 'layernorm', '?')}"
+            )
+
         # Models directory
         self.models_dir = self.save_dir / "models"
         self.models_dir.mkdir(parents=True, exist_ok=True)

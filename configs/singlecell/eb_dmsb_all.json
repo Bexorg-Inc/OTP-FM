@@ -1,0 +1,5 @@
+{
+    "_description": "EB 100D train-on-all (DMSB paper comparison). No holdout — uses all 5 timepoints.",
+    "holdout_times": [],
+    "eval_num_samples": 2000
+}

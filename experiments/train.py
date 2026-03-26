@@ -609,6 +609,9 @@ def main():
     parser.add_argument("--pca-dim", type=int, help="[singlecell] PCA dimensions")
     parser.add_argument("--lossfn", type=str, help="Loss function")
     parser.add_argument("--consistency-loss", type=str, help="Consistency loss type")
+    parser.add_argument("--hidden-dim", type=int, help="Hidden layer dimension")
+    parser.add_argument("--num-hidden-layers", type=int, help="Number of hidden layers")
+    parser.add_argument("--dropout", type=float, help="Dropout rate")
     parser.add_argument(
         "--x-pred",
         action=argparse.BooleanOptionalAction,
@@ -658,6 +661,9 @@ def main():
         "pca_dim": args.pca_dim,
         "lossfn": args.lossfn,
         "consistency_loss": args.consistency_loss,
+        "hidden_dim": args.hidden_dim,
+        "num_hidden_layers": args.num_hidden_layers,
+        "dropout": args.dropout,
         "x_pred": args.x_pred,
     }
     for key, value in cli_overrides.items():

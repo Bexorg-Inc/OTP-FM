@@ -76,7 +76,7 @@ def load_eb_data(
         marginals[t] = torch.tensor(pcs[mask], dtype=torch.float32)
 
     # Determine train times
-    holdout_times = holdout_times or [1, 3]
+    holdout_times = holdout_times if holdout_times is not None else [1, 3]
     train_times = [t for t in unique_times if t not in holdout_times]
 
     # Compute OT alignments if requested

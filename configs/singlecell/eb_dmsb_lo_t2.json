@@ -1,0 +1,5 @@
+{
+    "_description": "EB 100D leave-out t2 (DMSB paper comparison).",
+    "holdout_times": [2],
+    "eval_num_samples": 2000
+}
