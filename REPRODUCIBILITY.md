@@ -115,11 +115,6 @@ python experiments/train.py --dataset singlecell --potential w2 \
 - `tks` auto-computed: [0.25, 0.5, 0.75] for all, [0.33, 0.67] for LOO
 - Metrics: MMD, SWD, FGD, W1, W2 at each timepoint
 
-**Notes:**
-- The DMSB paper argues W1 suffers from curse of dimensionality at 100D and uses MMD + SWD as primary metrics.
-- Best epoch selected by minimum average FGD at t1 + t3.
-- Overfitting typically begins around epoch 120–180; early stopping is important.
-
 ## Tutorial Notebooks
 
 Interactive tutorials demonstrating each experiment:
