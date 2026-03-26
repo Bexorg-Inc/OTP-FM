@@ -562,9 +562,8 @@ def main():
     )
     parser.add_argument(
         "--potential",
-        type=str.lower,
-        choices=["w2inf", "w2", "kl", "mmd"],
-        help="Potential type",
+        type=str,
+        help="Potential config to load (e.g., W2, W2Inf, KL, MMD)",
     )
     parser.add_argument(
         "--config",
