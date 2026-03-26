@@ -67,8 +67,8 @@ def plot_losses(
     fontsize = loss_args["fontsize"]
 
     if has_metrics:
-        # 5-column figure: loss + SWD + MMD + FGD + W2
-        fig, axes = plt.subplots(1, 5, figsize=(30, 5))
+        # 6-column figure: loss + SWD + MMD + FGD + W2 + W1
+        fig, axes = plt.subplots(1, 6, figsize=(36, 5))
         ax = axes[0]
     else:
         # Single panel
@@ -82,21 +82,18 @@ def plot_losses(
 
     metric_epochs = np.array(losses["metric_epochs"])
 
-    # Colors for different time points
-    time_colors = {
-        "t1": TIME_COLORS[0],
-        "t2": TIME_COLORS[1],
-        "t3": TIME_COLORS[2],
-        "t4": TIME_COLORS[3],
-        "t2_t4": TIME_COLORS[4],
-    }
+    # Build time_colors from whatever time keys exist in the losses dict
+    time_keys = sorted(
+        {k.split("_", 1)[1] for k in losses if k.startswith("swd_") or k.startswith("w1_")}
+    )
+    time_colors = {k: TIME_COLORS[i % len(TIME_COLORS)] for i, k in enumerate(time_keys)}
 
     # ===== Panel 2: SWD Metrics =====
     ax_swd = axes[1]
     for key, color in time_colors.items():
         swd_key = f"swd_{key}"
         if swd_key in losses and len(losses[swd_key]) > 0:
-            label = f"t{key[-1]}" if len(key) == 2 else "t2+t4"
+            label = key
             ax_swd.plot(
                 metric_epochs,
                 losses[swd_key],
@@ -119,7 +116,7 @@ def plot_losses(
     for key, color in time_colors.items():
         mmd_key = f"mmd_{key}"
         if mmd_key in losses and len(losses[mmd_key]) > 0:
-            label = f"t{key[-1]}" if len(key) == 2 else "t2+t4"
+            label = key
             # Use appropriate x-axis based on MMD data length
             mmd_values = losses[mmd_key]
             if len(mmd_values) == len(metric_epochs):
@@ -148,7 +145,7 @@ def plot_losses(
     for key, color in time_colors.items():
         fgd_key = f"fgd_{key}"
         if fgd_key in losses and len(losses[fgd_key]) > 0:
-            label = f"t{key[-1]}" if len(key) == 2 else "t2+t4"
+            label = key
             ax_fgd.plot(
                 metric_epochs,
                 losses[fgd_key],
@@ -170,7 +167,7 @@ def plot_losses(
     for key, color in time_colors.items():
         w2_key = f"w2_{key}"
         if w2_key in losses and len(losses[w2_key]) > 0:
-            label = f"t{key[-1]}" if len(key) == 2 else "t2+t4"
+            label = key
             ax_w2.plot(
                 metric_epochs,
                 losses[w2_key],
@@ -186,6 +183,28 @@ def plot_losses(
     ax_w2.legend(loc="best", fontsize=fontsize - 2)
     ax_w2.set_title("Wasserstein-2 Distance", fontsize=fontsize)
     ax_w2.grid(True, alpha=0.3)
+
+    # ===== Panel 6: W1 Metrics (normalized space, WLF protocol) =====
+    ax_w1 = axes[5]
+    for key, color in time_colors.items():
+        w1_key = f"w1_{key}"
+        if w1_key in losses and len(losses[w1_key]) > 0:
+            label = key
+            ax_w1.plot(
+                metric_epochs[: len(losses[w1_key])],
+                losses[w1_key],
+                label=label,
+                color=color,
+                marker="o",
+                markersize=4,
+            )
+
+    ax_w1.set_xlabel("Epoch", fontsize=fontsize)
+    ax_w1.set_ylabel("W1 (normalized)", fontsize=fontsize)
+    ax_w1.set_xlim(0, len(losses["train_loss"]))
+    ax_w1.legend(loc="best", fontsize=fontsize - 2)
+    ax_w1.set_title("Wasserstein-1 (WLF)", fontsize=fontsize)
+    ax_w1.grid(True, alpha=0.3)
 
     plt.tight_layout()
 

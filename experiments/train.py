@@ -373,7 +373,7 @@ def get_dataset_trainer_args(dataset: str, setup_result: dict, config: dict) -> 
             args[key] = setup_result[key]
 
     # Only pass if explicitly configured; otherwise use the trainer's per-dataset defaults
-    for key in ("eval_n_steps", "eval_num_samples"):
+    for key in ("eval_n_steps", "eval_num_samples", "eval_metrics"):
         if key in config:
             args[key] = config[key]
 
@@ -434,6 +434,21 @@ def setup_singlecell(config: dict, device: str):
     )
 
     dim = config.get("pca_dim", 100)
+
+    # Auto-compute evenly-spaced tks when the number of intermediate training
+    # marginals differs from the configured number of potentials.
+    train_times = sorted(result.get("train_times", [0, 2, 4]))
+    n_intermediate = len(train_times) - 2  # exclude source and target
+    n_configured = len(config.get("tks", [0.5]))
+    if n_intermediate != n_configured and n_intermediate > 0:
+        auto_tks = [(i + 1) / (n_intermediate + 1) for i in range(n_intermediate)]
+        logger.info(
+            f"Auto-computed evenly-spaced tks for {n_intermediate} intermediate "
+            f"marginals (train_times={train_times}): {auto_tks} "
+            f"(overriding config tks={config.get('tks')})"
+        )
+        config["tks"] = auto_tks
+
     potentials = create_potentials(config)
     model = create_model(config, dim, potentials, device)
 
@@ -447,7 +462,7 @@ def setup_singlecell(config: dict, device: str):
         "trainer_class": singlecell_trainer.EBTrainer,
         "dim": dim,
         "holdout_times": config.get("holdout_times", [1, 3]),
-        "train_times": result.get("train_times", [0, 2, 4]),
+        "train_times": train_times,
     }
 
 
@@ -589,6 +604,9 @@ def main():
     parser.add_argument("--lr", type=float, help="Learning rate")
     parser.add_argument("--batch-size", type=int, help="Batch size")
     parser.add_argument("--strength", type=float, help="Potential strength")
+    parser.add_argument("--width", type=float, help="Lambda width")
+    parser.add_argument("--holdout-times", type=int, nargs="+", help="Times to hold out")
+    parser.add_argument("--pca-dim", type=int, help="[singlecell] PCA dimensions")
     parser.add_argument("--lossfn", type=str, help="Loss function")
     parser.add_argument("--consistency-loss", type=str, help="Consistency loss type")
     parser.add_argument(
@@ -635,6 +653,9 @@ def main():
         "lr": args.lr,
         "batch_size": args.batch_size,
         "strength": args.strength,
+        "width": args.width,
+        "holdout_times": args.holdout_times,
+        "pca_dim": args.pca_dim,
         "lossfn": args.lossfn,
         "consistency_loss": args.consistency_loss,
         "x_pred": args.x_pred,

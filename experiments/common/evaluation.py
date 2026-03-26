@@ -5,6 +5,7 @@ Implements:
  - Fréchet Gaussian Distance (FGD)
  - Maximum Mean Discrepancy (MMD)
  - Sliced Wasserstein Distance (SWD)
+ - Wasserstein-1 Distance (W1)
  - Wasserstein-2 Distance (W2)
 
 for comparing generated and ground truth distributions.
@@ -130,6 +131,35 @@ def compute_mmd(
     loss = torch.mean(XX) + torch.mean(YY) - torch.mean(XY) - torch.mean(YX)
 
     return loss.item()
+
+
+def compute_w1_distance(
+    generated: Tensor | np.ndarray,
+    ground_truth: Tensor | np.ndarray,
+) -> float:
+    """
+    W1 (Earth Mover's Distance) with Euclidean cost.
+
+    Matches the protocol in Neklyudov et al. (2024) "Wasserstein Lagrangian Flows"
+    which uses ``ot.emd2`` on Euclidean distance with ``numItermax=1e7``.
+    """
+    if not HAS_POT:
+        raise ImportError("POT library required for W1.")
+
+    if isinstance(generated, Tensor):
+        generated = generated.detach().cpu().numpy()
+    if isinstance(ground_truth, Tensor):
+        ground_truth = ground_truth.detach().cpu().numpy()
+
+    num_samples = min(len(generated), len(ground_truth))
+    gen_np = generated[:num_samples].astype(np.float64)
+    gt_np = ground_truth[:num_samples].astype(np.float64)
+
+    a = np.ones(len(gen_np)) / len(gen_np)
+    b = np.ones(len(gt_np)) / len(gt_np)
+
+    M = ot.dist(gen_np, gt_np, metric="euclidean")
+    return float(ot.emd2(a, b, M, numItermax=int(1e7)))
 
 
 def compute_w2_distance(

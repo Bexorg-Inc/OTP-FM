@@ -1,0 +1,6 @@
+{
+    "_description": "EB leave-one-out experiment (5-dim PCA). Holdout times set per-fold via CLI.",
+    "pca_dim": 5,
+    "eval_num_samples": 2000,
+    "eval_metrics": ["w1", "fgd"]
+}

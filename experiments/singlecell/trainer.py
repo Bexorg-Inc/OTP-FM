@@ -15,7 +15,13 @@ from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
 from experiments import Trainer
-from experiments.evaluation import compute_fgd, compute_mmd, compute_swd, compute_w2_distance
+from experiments.evaluation import (
+    compute_fgd,
+    compute_mmd,
+    compute_swd,
+    compute_w1_distance,
+    compute_w2_distance,
+)
 from experiments.plotting import plot_target_vs_learned
 from experiments.singlecell import plotting
 
@@ -57,6 +63,7 @@ class EBTrainer(Trainer):
         holdout_times: list[int] | None = None,
         eval_n_steps: int = 50,
         eval_num_samples: int = 2000,
+        eval_metrics: list[str] | None = None,
         traj_skips: int | None = None,
         num_1d_plot_samples: int = 5,
         animation_duration: int = 500,
@@ -88,6 +95,7 @@ class EBTrainer(Trainer):
         self.holdout_times = holdout_times
         self.eval_n_steps = eval_n_steps
         self.eval_num_samples = eval_num_samples
+        self.eval_metrics = set(eval_metrics or ["w1", "swd", "mmd", "fgd", "w2"])
         self.num_1d_plot_samples = num_1d_plot_samples
         self.animation_duration = animation_duration
 
@@ -120,11 +128,13 @@ class EBTrainer(Trainer):
         return dataset
 
     def _init_marginal_metrics(self):
-        """Initialize metric tracking."""
-        metrics = ["swd", "mmd", "fgd", "w2"]
-        times = ["t1", "t2", "t3", "t4", "t2_t4"]
-        for m in metrics:
-            for t in times:
+        """Initialize metric tracking for all marginal times."""
+        all_times = sorted(self.marginals.keys()) if self.marginals else []
+        time_keys = [f"t{t}" for t in all_times]
+        if 2 in (self.marginals or {}) and 4 in (self.marginals or {}):
+            time_keys.append("t2_t4")
+        for m in self.eval_metrics:
+            for t in time_keys:
                 self.losses[f"{m}_{t}"] = []
         self.losses["metric_epochs"] = []
 
@@ -218,79 +228,113 @@ class EBTrainer(Trainer):
 
     @torch.no_grad()
     def _compute_metrics(self, epoch: int, do_mmd: bool = False):
-        """Compute metrics at all time points."""
+        """Compute metrics at all time points.
+
+        W1 is computed in normalized (standardized) space to match the WLF paper
+        protocol (Neklyudov et al. 2024). All other metrics use inverse-transformed
+        (original PCA) space. Only metrics listed in ``self.eval_metrics`` are computed.
+        """
         if self.marginals is None or not self.epoch_trajectories:
             return
 
-        trajectories = self.epoch_trajectories[-1]
-        if self.scaler is not None:
-            # Inverse transform if normalized
-            shape = trajectories.shape
-            trajectories = self.scaler.inverse_transform(
-                trajectories.reshape(-1, shape[-1])
-            ).reshape(shape)
-
+        metrics = self.eval_metrics
+        raw_trajectories = self.epoch_trajectories[-1]  # normalized space
         t_eval = self.trajectory_t_eval
 
-        # Time normalization
-        time_min, time_max = min(self.train_times), max(self.train_times)
+        need_inv = metrics & {"swd", "mmd", "fgd", "w2"}
+        if need_inv and self.scaler is not None:
+            shape = raw_trajectories.shape
+            inv_trajectories = self.scaler.inverse_transform(
+                raw_trajectories.reshape(-1, shape[-1])
+            ).reshape(shape)
+        else:
+            inv_trajectories = raw_trajectories
+
+        all_times = sorted(self.marginals.keys())
+        time_min, time_max = min(all_times), max(all_times)
 
         def normalize_time(t):
             return (t - time_min) / (time_max - time_min)
 
         generated_samples = {}
+        generated_samples_norm = {}
 
-        for t in [1, 2, 3, 4]:
-            if t not in self.marginals:
-                continue
-
+        for t in all_times:
             t_norm = normalize_time(t)
             target_idx = np.argmin(np.abs(t_eval - t_norm))
 
-            ground_truth = self.marginals[t][: self.eval_num_samples]
-            if self.scaler is not None:
-                ground_truth = torch.from_numpy(
-                    self.scaler.inverse_transform(ground_truth.cpu().numpy())
-                )
-            generated = torch.from_numpy(trajectories[target_idx])
+            gt_norm = self.marginals[t][: self.eval_num_samples]
+            gen_norm = torch.from_numpy(raw_trajectories[target_idx])
 
-            # Compute metrics
-            self.losses[f"swd_t{t}"].append(compute_swd(generated, ground_truth))
-            if do_mmd:
-                self.losses[f"mmd_t{t}"].append(compute_mmd(generated, ground_truth))
-            self.losses[f"fgd_t{t}"].append(compute_fgd(generated, ground_truth))
-            w2_dim = min(generated.shape[-1], 10)
-            self.losses[f"w2_t{t}"].append(
-                compute_w2_distance(generated[:, :w2_dim], ground_truth[:, :w2_dim])
-            )
+            if "w1" in metrics:
+                self.losses[f"w1_t{t}"].append(compute_w1_distance(gen_norm, gt_norm))
 
-            generated_samples[t] = generated
+            if need_inv:
+                if self.scaler is not None:
+                    gt_inv = torch.from_numpy(
+                        self.scaler.inverse_transform(gt_norm.cpu().numpy())
+                    )
+                else:
+                    gt_inv = gt_norm
+                gen_inv = torch.from_numpy(inv_trajectories[target_idx])
+
+                if "swd" in metrics:
+                    self.losses[f"swd_t{t}"].append(compute_swd(gen_inv, gt_inv))
+                if "mmd" in metrics and do_mmd:
+                    self.losses[f"mmd_t{t}"].append(compute_mmd(gen_inv, gt_inv))
+                if "fgd" in metrics:
+                    self.losses[f"fgd_t{t}"].append(compute_fgd(gen_inv, gt_inv))
+                if "w2" in metrics:
+                    w2_dim = min(gen_inv.shape[-1], 10)
+                    self.losses[f"w2_t{t}"].append(
+                        compute_w2_distance(gen_inv[:, :w2_dim], gt_inv[:, :w2_dim])
+                    )
+
+                generated_samples[t] = gen_inv
+            generated_samples_norm[t] = gen_norm
 
         # Combined t2+t4 metrics
-        if 2 in generated_samples and 4 in generated_samples:
-            gen_combined = torch.cat([generated_samples[2], generated_samples[4]])
-            gt_2 = self.marginals[2][: self.eval_num_samples]
-            gt_4 = self.marginals[4][: self.eval_num_samples]
-            if self.scaler is not None:
-                gt_2 = torch.from_numpy(self.scaler.inverse_transform(gt_2.cpu().numpy()))
-                gt_4 = torch.from_numpy(self.scaler.inverse_transform(gt_4.cpu().numpy()))
-            gt_combined = torch.cat([gt_2, gt_4])
+        if 2 in generated_samples_norm and 4 in generated_samples_norm:
+            if "w1" in metrics:
+                gen_norm_combined = torch.cat(
+                    [generated_samples_norm[2], generated_samples_norm[4]]
+                )
+                gt_norm_combined = torch.cat(
+                    [
+                        self.marginals[2][: self.eval_num_samples],
+                        self.marginals[4][: self.eval_num_samples],
+                    ]
+                )
+                self.losses["w1_t2_t4"].append(
+                    compute_w1_distance(gen_norm_combined, gt_norm_combined)
+                )
 
-            self.losses["swd_t2_t4"].append(compute_swd(gen_combined, gt_combined))
-            if do_mmd:
-                self.losses["mmd_t2_t4"].append(compute_mmd(gen_combined, gt_combined))
-            self.losses["fgd_t2_t4"].append(compute_fgd(gen_combined, gt_combined))
+            if need_inv and 2 in generated_samples and 4 in generated_samples:
+                gen_combined = torch.cat([generated_samples[2], generated_samples[4]])
+                gt_2 = self.marginals[2][: self.eval_num_samples]
+                gt_4 = self.marginals[4][: self.eval_num_samples]
+                if self.scaler is not None:
+                    gt_2 = torch.from_numpy(self.scaler.inverse_transform(gt_2.cpu().numpy()))
+                    gt_4 = torch.from_numpy(self.scaler.inverse_transform(gt_4.cpu().numpy()))
+                gt_combined = torch.cat([gt_2, gt_4])
+
+                if "swd" in metrics:
+                    self.losses["swd_t2_t4"].append(compute_swd(gen_combined, gt_combined))
+                if "mmd" in metrics and do_mmd:
+                    self.losses["mmd_t2_t4"].append(compute_mmd(gen_combined, gt_combined))
+                if "fgd" in metrics:
+                    self.losses["fgd_t2_t4"].append(compute_fgd(gen_combined, gt_combined))
 
         self.losses["metric_epochs"].append(epoch)
 
         # Log summary
         log_parts = [f"Epoch {epoch} metrics:"]
-        for t in [1, 2, 3, 4]:
-            if t in self.marginals and self.losses.get(f"swd_t{t}"):
-                log_parts.append(f"t{t}(SWD={self.losses[f'swd_t{t}'][-1]:.4f})")
+        for t in all_times:
+            if self.losses.get(f"w1_t{t}"):
+                log_parts.append(f"t{t}(W1={self.losses[f'w1_t{t}'][-1]:.3f})")
         self.logger.info(" ".join(log_parts))
 
-    def post_training(self, show: bool = False, create_animation: bool = True) -> Path:
+    def post_training(self, show: bool = False, create_animation: bool = False) -> Path:
         """Run post-training tasks."""
         self._compute_metrics(epoch=self.epochs, do_mmd=True)
         save_path = super().post_training(show=show)
@@ -323,6 +367,7 @@ class EBTrainer(Trainer):
             ground_truth_marginals=gt_marginals,
             plot_times=all_times,
             pcs=(0, 1),
+            num_trajectories=0,
             save_path=self.save_dir / "trajectories_pc1_pc2.pdf",
             show=False,
         )
@@ -336,6 +381,7 @@ class EBTrainer(Trainer):
                 ground_truth_marginals=gt_marginals,
                 plot_times=all_times,
                 pcs=(2, 3),
+                num_trajectories=0,
                 save_path=self.save_dir / "trajectories_pc3_pc4.pdf",
                 show=False,
             )
@@ -401,6 +447,11 @@ class EBTrainer(Trainer):
 
         # Add all metric values from the best epoch
         for key in [
+            "w1_t1",
+            "w1_t2",
+            "w1_t3",
+            "w1_t4",
+            "w1_t2_t4",
             "swd_t1",
             "swd_t2",
             "swd_t3",
