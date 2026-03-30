@@ -78,7 +78,23 @@ python experiments/train.py --dataset singlecell --config configs/singlecell/eb_
 - `tks` (potential time points) are auto-computed as evenly spaced based on the number of intermediate training marginals.
 - Config files are fully self-contained — no CLI overrides needed.
 
-### EB 100D (DMSB Paper Comparison)
+### EB 5D Leave-Two-Out (iJKOnet Paper Comparison)
+
+This experiment uses **5-dim PCA**, holds out t1 and t3, trains on t0, t2, t4, and evaluates **W2 distance** (in normalized space) at the held-out times.
+
+**Config:** `configs/singlecell/eb_ijko.json` (layers on top of `defaults.json` → `W2.json`)
+
+**Run command:**
+
+```bash
+python experiments/train.py --dataset singlecell --potential w2 \
+    --config configs/singlecell/eb_ijko.json --tag ijko_w2
+```
+
+**Notes:**
+- W2 is computed in normalized (standardized) space, consistent with the iJKOnet paper and previous benchmarks.
+
+### EB 100D Leave-One-Out (DMSB Paper Comparison)
 
 This reproduces the Embryoid Body experiment from [Chen et al. 2023 "Deep Multi-Marginal Momentum Schrödinger Bridge"](https://arxiv.org/abs/2303.01751), Table 3. The experiment uses **100-dim PCA** with the standard single-cell config (`defaults.json`), evaluating MMD, SWD, and FGD at each timepoint. Four conditions: train-on-all, and leave-out t1/t2/t3. Each condition is run with W2 (OT-coupled) and W2Inf (no OT coupling).
 

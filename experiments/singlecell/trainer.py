@@ -245,7 +245,7 @@ class EBTrainer(Trainer):
         raw_trajectories = self.epoch_trajectories[-1]  # normalized space
         t_eval = self.trajectory_t_eval
 
-        need_inv = metrics & {"swd", "mmd", "fgd", "w2"}
+        need_inv = metrics & {"swd", "mmd", "fgd"}
         if need_inv and self.scaler is not None:
             shape = raw_trajectories.shape
             inv_trajectories = self.scaler.inverse_transform(
@@ -272,6 +272,8 @@ class EBTrainer(Trainer):
 
             if "w1" in metrics:
                 self.losses[f"w1_t{t}"].append(compute_w1_distance(gen_norm, gt_norm))
+            if "w2" in metrics:
+                self.losses[f"w2_t{t}"].append(compute_w2_distance(gen_norm, gt_norm))
 
             if need_inv:
                 if self.scaler is not None:
@@ -288,11 +290,6 @@ class EBTrainer(Trainer):
                     self.losses[f"mmd_t{t}"].append(compute_mmd(gen_inv, gt_inv))
                 if "fgd" in metrics:
                     self.losses[f"fgd_t{t}"].append(compute_fgd(gen_inv, gt_inv))
-                if "w2" in metrics:
-                    w2_dim = min(gen_inv.shape[-1], 10)
-                    self.losses[f"w2_t{t}"].append(
-                        compute_w2_distance(gen_inv[:, :w2_dim], gt_inv[:, :w2_dim])
-                    )
 
                 generated_samples[t] = gen_inv
             generated_samples_norm[t] = gen_norm
@@ -332,7 +329,7 @@ class EBTrainer(Trainer):
         self.losses["metric_epochs"].append(epoch)
 
         # Log summary — show all computed metrics per time
-        metric_order = ["swd", "mmd", "fgd", "w1"]
+        metric_order = ["w2", "swd", "mmd", "fgd", "w1"]
         log_parts = [f"Epoch {epoch} metrics:"]
         for t in all_times:
             vals = []
