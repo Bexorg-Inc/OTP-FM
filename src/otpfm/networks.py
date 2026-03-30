@@ -15,6 +15,8 @@ ACTIVATIONS = {
     "gelu": nn.GELU,
     "tanh": nn.Tanh,
     "leaky_relu": nn.LeakyReLU,
+    "selu": nn.SELU,
+    "softplus": nn.Softplus,
 }
 
 

@@ -96,40 +96,96 @@ python experiments/train.py --dataset singlecell --potential w2 \
 
 ### EB 100D Leave-One-Out (DMSB Paper Comparison)
 
-This reproduces the Embryoid Body experiment from [Chen et al. 2023 "Deep Multi-Marginal Momentum Schrödinger Bridge"](https://arxiv.org/abs/2303.01751), Table 3. The experiment uses **100-dim PCA** with the standard single-cell config (`defaults.json`), evaluating MMD, SWD, and FGD at each timepoint. Four conditions: train-on-all, and leave-out t1/t2/t3.
+This reproduces the Embryoid Body experiment from [Chen et al. 2023 "Deep Multi-Marginal Momentum Schrödinger Bridge"](https://arxiv.org/abs/2303.01751), Table 3. The experiment uses **100-dim PCA** with the standard single-cell config (`defaults.json`), evaluating MMD, SWD, and FGD at each timepoint. Four conditions: train-on-all, and leave-out t1/t2/t3. Each condition is run with W2 (OT-coupled) and W2Inf (no OT coupling).
 
-**Configs:** The experiment-specific configs layer on top of `defaults.json` → `W2.json`:
+**Configs:** Self-contained configs in `configs/singlecell/100D/` layer on top of `defaults.json`. Common overrides shared by all conditions are documented in `100D/defaults.json` (MSE loss, strength 300). LOO t1 and t3 use wider potentials (`width=0.3`), more epochs (500), a faster alpha schedule (`otp_alpha_mean_scale=0.3`), and gradient clipping (`grad_clip=1.0`).
 
-- `configs/singlecell/eb_dmsb_all.json` — train on all 5 timepoints (no holdout)
-- `configs/singlecell/eb_dmsb_lo_t1.json` — hold out t1
-- `configs/singlecell/eb_dmsb_lo_t2.json` — hold out t2
-- `configs/singlecell/eb_dmsb_lo_t3.json` — hold out t3
-
-**Run commands** (run one at a time to avoid resource contention):
+**Run commands** (run one at a time to avoid GPU contention):
 
 ```bash
 # Train on all timepoints
-python experiments/train.py --dataset singlecell --potential w2 \
-    --config configs/singlecell/eb_dmsb_all.json --tag dmsb_all
+python experiments/train.py --dataset singlecell \
+    --config configs/singlecell/100D/all_w2.json --tag 100d_all_w2
+python experiments/train.py --dataset singlecell \
+    --config configs/singlecell/100D/all_w2inf.json --tag 100d_all_w2inf
 
-# Leave-one-out
-python experiments/train.py --dataset singlecell --potential w2 \
-    --config configs/singlecell/eb_dmsb_lo_t1.json --tag dmsb_lo_t1
+# Leave-one-out: t1
+python experiments/train.py --dataset singlecell \
+    --config configs/singlecell/100D/lo_t1_w2.json --tag 100d_lo_t1_w2
+python experiments/train.py --dataset singlecell \
+    --config configs/singlecell/100D/lo_t1_w2inf.json --tag 100d_lo_t1_w2inf
 
-python experiments/train.py --dataset singlecell --potential w2 \
-    --config configs/singlecell/eb_dmsb_lo_t2.json --tag dmsb_lo_t2
+# Leave-one-out: t2
+python experiments/train.py --dataset singlecell \
+    --config configs/singlecell/100D/lo_t2_w2.json --tag 100d_lo_t2_w2
+python experiments/train.py --dataset singlecell \
+    --config configs/singlecell/100D/lo_t2_w2inf.json --tag 100d_lo_t2_w2inf
 
-python experiments/train.py --dataset singlecell --potential w2 \
-    --config configs/singlecell/eb_dmsb_lo_t3.json --tag dmsb_lo_t3
+# Leave-one-out: t3
+python experiments/train.py --dataset singlecell \
+    --config configs/singlecell/100D/lo_t3_w2.json --tag 100d_lo_t3_w2
+python experiments/train.py --dataset singlecell \
+    --config configs/singlecell/100D/lo_t3_w2inf.json --tag 100d_lo_t3_w2inf
 ```
 
-**Effective config** (from `defaults.json` + `W2.json` + experiment config):
-- 100-dim PCA, normalized, OT-coupled
-- 768d/8L architecture (4.9M params), adaptive loss
-- W2Inf potential with OT coupling (= W2), strength 500
-- 300 epochs, lr 0.003, batch size 256
+**Effective config** (from `defaults.json` + experiment config):
+- 100-dim PCA, normalized, 768d/8L architecture (4.9M params)
+- MSE loss, W2Inf potential, strength 300
 - `tks` auto-computed: [0.25, 0.5, 0.75] for all, [0.33, 0.67] for LOO
-- Metrics: MMD, SWD, FGD, W1, W2 at each timepoint
+- Train-on-all / LOO t2: 300 epochs, lr 0.003, batch size 256, width 0.2
+- LOO t1 / LOO t3: 500 epochs, width 0.3, `otp_alpha_mean_scale` 0.3, `grad_clip` 1.0
+- Metrics: MMD, SWD, FGD, W1 at each timepoint
+
+**Expected results** (average MMD across t1–t4, best epoch):
+
+| Condition | W2 (OT) | W2Inf (no OT) |
+|-----------|:-------:|:-------------:|
+| **All** | **0.035** | 0.066 |
+| **LOO t1** | 0.070 (t1\*≈0.18) | 0.075 (t1\*≈0.18) |
+| **LOO t2** | 0.057 (t2\*≈0.07) | 0.068 (t2\*≈0.14) |
+| **LOO t3** | 0.067 (t3\*≈0.07) | 0.091 (t3\*≈0.10) |
+
+**Notes:**
+- W2 = W2Inf potential with OT-coupled sampling; W2Inf = W2Inf potential with random coupling.
+- Train-on-all with W2 meets the <0.04 average MMD target. LOO experiments remain above 0.04, with LOO t1 being the hardest (held-out t1 MMD ≈ 0.18).
+- LOO t1/t3 benefit from wider potentials and slower alpha ramp-up to stabilize training.
+
+### CITE-seq 50D PCA (Leave-One-Out)
+
+This experiment evaluates OTP-FM on the CITE-seq dataset (31,240 cells, 4 timepoints: days 2/3/4/7) using 50 PCA dimensions, following the protocol from [Neklyudov et al. 2024](https://arxiv.org/abs/2310.10649). Leave-one-out cross-validation holds out day 3 (fold 1) or day 4 (fold 2), and the primary metric is Wasserstein-1 distance in original PCA space.
+
+**Data**: Download `cite_pca50.csv` from the [VGFM repository](https://github.com/DongyiWang-66/VGFM/blob/main/data/cite_pca50.csv) and place it in `OTP-FM/data/cite_pca50.csv`.
+
+**Architecture**: 10-layer / 768-dim MLP with SiLU activation, LayerNorm, and residual connections every 2 layers (~6.5M params).
+
+**Key hyperparameters**: W2Inf potential with delta kernel (strength=300, width=0.33), adaptive loss, meanflow consistency loss, cosine LR schedule (lr=0.003) over 200 epochs.
+
+**Run commands:**
+
+```bash
+# W2 (OT-coupled, 200 epochs, cosine LR)
+python experiments/train.py --dataset citeseq --potential W2 --holdout-times 1  # fold 1: hold out day 3
+python experiments/train.py --dataset citeseq --potential W2 --holdout-times 2  # fold 2: hold out day 4
+
+# W2Inf (no OT coupling, 80 epochs, no LR schedule)
+python experiments/train.py --dataset citeseq --potential W2Inf --holdout-times 1
+python experiments/train.py --dataset citeseq --potential W2Inf --holdout-times 2
+```
+
+**Expected results** (W1 on held-out marginal, original PCA space):
+
+| Method | Fold 1 (t1/day 3) | Fold 2 (t2/day 4) | Average |
+|--------|:-----------------:|:-----------------:|:-------:|
+| **OTP-FM W2** | **38.07** (@ep70) | **35.46** (@ep10) | **36.76** |
+| OTP-FM W2Inf | 41.99 (@ep80) | 33.28 (@ep80) | 37.64 |
+
+**Notes:**
+- Configs layer on `OTP-FM/configs/citeseq/defaults.json`; `W2.json` and `W2Inf.json` specify only the method-specific overrides.
+- Holdout fold is selected via `--holdout-times` on the CLI — no separate config per fold.
+- All metrics are computed on the full dataset (no subsampling) in the original (un-normalized) PCA space.
+- W2 fold 2 peaks very early (~epoch 10) then overfits; fold 1 peaks around epoch 70.
+- The delta potential shape and cosine LR schedule were identified as key improvements over the Gaussian potential baseline.
+- `tks=[0.5]` is auto-computed for leave-one-out with one intermediate marginal.
 
 ## Tutorial Notebooks
 

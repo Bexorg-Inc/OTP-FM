@@ -131,10 +131,13 @@ Evaluation:
 # Config Loading
 # =============================================================================
 
+CONFIGS_ROOT = Path("OTP-FM/configs")
+
 # Map dataset names to config directory names
 DATASET_CONFIG_DIRS = {
     "gaussian": "gaussian",
     "singlecell": "singlecell",
+    "citeseq": "citeseq",
     "gulfofmexico": "gom",
     "beijingair": "beijing",
 }
@@ -158,7 +161,7 @@ def load_config(dataset: str, potential: str = None, config_path: Path = None) -
         3. Custom config file (if config_path specified)
     """
     config_dir = DATASET_CONFIG_DIRS.get(dataset, dataset)
-    base_config_path = Path("configs") / config_dir / "defaults.json"
+    base_config_path = CONFIGS_ROOT / config_dir / "defaults.json"
 
     # Start with defaults
     if base_config_path.exists():
@@ -168,15 +171,21 @@ def load_config(dataset: str, potential: str = None, config_path: Path = None) -
         logger.warning(f"No defaults found at {base_config_path}, using empty config")
         config = {}
 
-    # Layer potential-specific config
+    # Layer potential-specific config (case-insensitive match)
     if potential:
-        potential_config_path = Path("configs") / config_dir / f"{potential}.json"
-        if potential_config_path.exists():
+        potential_dir = CONFIGS_ROOT / config_dir
+        potential_config_path = None
+        if potential_dir.is_dir():
+            for p in potential_dir.glob("*.json"):
+                if p.stem.lower() == potential.lower() and p.stem != "defaults":
+                    potential_config_path = p
+                    break
+        if potential_config_path:
             potential_config = load_json_config(potential_config_path)
             config = merge_configs(config, potential_config)
             logger.info(f"Loaded potential config from: {potential_config_path}")
         else:
-            logger.warning(f"Potential config not found: {potential_config_path}")
+            logger.warning(f"Potential config not found in {potential_dir} for '{potential}'")
 
     # Layer custom config file
     if config_path:
@@ -188,11 +197,9 @@ def load_config(dataset: str, potential: str = None, config_path: Path = None) -
 
 
 def merge_configs(base: dict, override: dict) -> dict:
-    """Merge override config into base config."""
+    """Merge override config into base config. Explicit null values override."""
     result = base.copy()
-    for key, value in override.items():
-        if value is not None:
-            result[key] = value
+    result.update(override)
     return result
 
 
@@ -201,12 +208,11 @@ def list_available_configs():
     print("\nAvailable Configurations")
     print("=" * 50)
 
-    configs_dir = Path("configs")
-    if not configs_dir.exists():
-        print("No configs directory found")
+    if not CONFIGS_ROOT.exists():
+        print(f"No configs directory found at {CONFIGS_ROOT}")
         return
 
-    for dataset_dir in sorted(configs_dir.iterdir()):
+    for dataset_dir in sorted(CONFIGS_ROOT.iterdir()):
         if dataset_dir.is_dir():
             print(f"\n{dataset_dir.name}/")
             for config_file in sorted(dataset_dir.glob("*.json")):
@@ -271,7 +277,8 @@ def create_potentials(config: dict) -> OrderedDict:
 
     # Handle per-potential strengths/widths
     strengths = config.get("strengths") or [config["strength"]] * len(tks)
-    widths = config.get("widths") or [config.get("width", 0.2)] * len(tks)
+    default_w = config.get("width") or config.get("lambda_width", 0.2)
+    widths = config.get("widths") or [default_w] * len(tks)
 
     for tk, strength, width in zip(tks, strengths, widths):
         potentials[tk] = create_potential(config, tk, strength=strength, width=width)
@@ -346,7 +353,7 @@ def build_tag(config: dict, base_tag: str) -> str:
     parts = [base_tag]
     parts.append(config.get("potential", "w2inf"))
     parts.append(f"s{config.get('strength', 100)}")
-    parts.append(f"w{config.get('width', 0.2)}")
+    parts.append(f"w{config.get('width') or config.get('lambda_width', 0.2)}")
     parts.append(f"lr{config.get('lr', 0.001)}")
     parts.append(f"nl{config.get('num_hidden_layers', 4)}")
     return "_".join(parts)
@@ -373,7 +380,7 @@ def get_dataset_trainer_args(dataset: str, setup_result: dict, config: dict) -> 
             args[key] = setup_result[key]
 
     # Only pass if explicitly configured; otherwise use the trainer's per-dataset defaults
-    for key in ("eval_n_steps", "eval_num_samples", "eval_metrics"):
+    for key in ("eval_n_steps", "eval_num_samples", "eval_metrics", "traj_skips", "save_skips"):
         if key in config:
             args[key] = config[key]
 
@@ -462,6 +469,62 @@ def setup_singlecell(config: dict, device: str):
         "trainer_class": singlecell_trainer.EBTrainer,
         "dim": dim,
         "holdout_times": config.get("holdout_times", [1, 3]),
+        "train_times": train_times,
+    }
+
+
+def setup_citeseq(config: dict, device: str):
+    """Set up CITE-seq experiment."""
+    from experiments.citeseq import data
+    from experiments.citeseq import trainer as citeseq_trainer
+
+    result = data.load_citeseq_data(
+        data_dir=Path(config.get("data_dir", "data")),
+        pca_dim=config.get("pca_dim", 50),
+        normalize=config.get("normalize", True),
+        ot_coupling=config.get("ot_coupling", True),
+        ot_method=config.get("ot_method", "emd"),
+        holdout_times=config.get("holdout_times", [1]),
+    )
+
+    train_loader, val_loader = data.create_citeseq_dataloaders(
+        result["pcs"],
+        result["labels"],
+        holdout_times=config.get("holdout_times", [1]),
+        batch_size=config.get("batch_size", 256),
+        val_split=config.get("val_split", 0.1),
+        ot_alignments=result.get("ot_alignments"),
+    )
+
+    dim = config.get("pca_dim", 50)
+
+    # Auto-compute tks: cite-seq has 4 timepoints, with holdout the remaining
+    # train times determine the number of intermediate marginals.
+    train_times = sorted(result.get("train_times", [0, 2, 3]))
+    n_intermediate = len(train_times) - 2
+    n_configured = len(config.get("tks", [0.5]))
+    if n_intermediate != n_configured and n_intermediate > 0:
+        auto_tks = [(i + 1) / (n_intermediate + 1) for i in range(n_intermediate)]
+        logger.info(
+            f"Auto-computed evenly-spaced tks for {n_intermediate} intermediate "
+            f"marginals (train_times={train_times}): {auto_tks} "
+            f"(overriding config tks={config.get('tks')})"
+        )
+        config["tks"] = auto_tks
+
+    potentials = create_potentials(config)
+    model = create_model(config, dim, potentials, device)
+
+    return {
+        "train_loader": train_loader,
+        "val_loader": val_loader,
+        "marginals": result["marginals"],
+        "scaler": result.get("scaler"),
+        "model": model,
+        "potentials": potentials,
+        "trainer_class": citeseq_trainer.CiteSeqTrainer,
+        "dim": dim,
+        "holdout_times": config.get("holdout_times", [1]),
         "train_times": train_times,
     }
 
@@ -572,7 +635,7 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str.lower,
-        choices=["gaussian", "singlecell", "gulfofmexico", "beijingair"],
+        choices=["gaussian", "singlecell", "citeseq", "gulfofmexico", "beijingair"],
         help="Dataset to train on",
     )
     parser.add_argument(
@@ -695,6 +758,7 @@ def main():
     setup_funcs = {
         "gaussian": setup_gaussian,
         "singlecell": setup_singlecell,
+        "citeseq": setup_citeseq,
         "gulfofmexico": setup_gulfofmexico,
         "beijingair": setup_beijingair,
     }
@@ -737,6 +801,8 @@ def main():
         epochs=config.get("epochs", 100),
         optimizer=config.get("optimizer", "adam"),
         grad_clip=config.get("grad_clip", 0.0),
+        weight_decay=config.get("weight_decay", 0.0),
+        lr_schedule=config.get("lr_schedule", None),
         do_otp=True,
         otp_alpha_type=config.get("otp_alpha_type", "sigmoid"),
         otp_alpha_slope=config.get("otp_alpha_slope", 6.0),
