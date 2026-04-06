@@ -105,7 +105,7 @@ Training Options:
   seed                  Random seed (default: 42)
 
 OTP-FM Options:
-  consistency_loss      Loss type: "meanflow" (default: "meanflow")
+  consistency_loss      Consistency loss type: "meanflow", "imf", "lsd" (default: "meanflow")
   lossfn                Loss function: "adaptive", "mse" (default: "adaptive")
   time_sampler          Time sampling: "uniform_scaled_marginal" (default)
   diag_prob             Probability of diagonal time samples (default: 0.75)
@@ -315,6 +315,7 @@ def create_model(config: dict, dim: int, potentials: OrderedDict, device: str) -
         solver_type=config.get("solver_type"),
         picard_steps=config.get("picard_steps", 5),
         adaptive_exp=config.get("adaptive_exp", 1.0),
+        x_pred=config.get("x_pred", False),
     ).to(device)
 
     return model
@@ -354,6 +355,29 @@ def build_tag(config: dict, base_tag: str) -> str:
 # =============================================================================
 # Dataset-Specific Setup
 # =============================================================================
+
+
+def get_dataset_trainer_args(dataset: str, setup_result: dict, config: dict) -> dict:
+    """Get dataset-specific trainer kwargs.
+
+    Returns only the kwargs needed for the given dataset's trainer,
+    avoiding passing unnecessary args across trainers.
+    """
+    if dataset == "gaussian":
+        return {}
+
+    # Real-world datasets: singlecell, gulfofmexico, beijingair
+    args = {}
+    for key in ("marginals", "scaler", "holdout_times", "train_times"):
+        if key in setup_result:
+            args[key] = setup_result[key]
+
+    # Only pass if explicitly configured; otherwise use the trainer's per-dataset defaults
+    for key in ("eval_n_steps", "eval_num_samples"):
+        if key in config:
+            args[key] = config[key]
+
+    return args
 
 
 def setup_gaussian(config: dict, device: str):
@@ -532,19 +556,21 @@ def main():
     # Main arguments
     parser.add_argument(
         "--dataset",
-        type=str,
+        type=str.lower,
         choices=["gaussian", "singlecell", "gulfofmexico", "beijingair"],
         help="Dataset to train on",
     )
     parser.add_argument(
         "--potential",
-        type=str,
-        help="Potential config to load (e.g., W2Inf, W2, KL, MMD)",
+        type=str.lower,
+        choices=["w2inf", "w2", "kl", "mmd"],
+        help="Potential type",
     )
     parser.add_argument(
         "--config",
         type=str,
-        help="Path to custom JSON config file (layers on top of defaults)",
+        default=None,
+        help="Optional path to custom JSON config file",
     )
 
     # Run configuration
@@ -563,11 +589,13 @@ def main():
     parser.add_argument("--lr", type=float, help="Learning rate")
     parser.add_argument("--batch-size", type=int, help="Batch size")
     parser.add_argument("--strength", type=float, help="Potential strength")
+    parser.add_argument("--lossfn", type=str, help="Loss function")
+    parser.add_argument("--consistency-loss", type=str, help="Consistency loss type")
     parser.add_argument(
-        "--consistency-loss",
-        type=str,
-        choices=["meanflow", "lsd"],
-        help="Consistency loss type (default: from config)",
+        "--x-pred",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable x-prediction mode",
     )
 
     # Utility
@@ -607,7 +635,9 @@ def main():
         "lr": args.lr,
         "batch_size": args.batch_size,
         "strength": args.strength,
+        "lossfn": args.lossfn,
         "consistency_loss": args.consistency_loss,
+        "x_pred": args.x_pred,
     }
     for key, value in cli_overrides.items():
         if value is not None:
@@ -640,17 +670,19 @@ def main():
 
     setup_result = setup_funcs[args.dataset](config, device)
 
-    # Create save directory
-    if args.save_dir:
-        save_dir = Path(args.save_dir)
+    # Create save directory - automatically adds important hyperparameters and a run number
+    base_save_dir = Path(args.save_dir) if args.save_dir else (Path("results") / args.dataset)
+    if args.tag:
+        save_dir = base_save_dir / args.tag
+        parent_dir = save_dir.parent
+        tag = save_dir.name
     else:
-        save_dir = Path("results") / args.dataset / args.tag
-
-    parent_dir = save_dir.parent
+        parent_dir = base_save_dir
+        tag = None
     parent_dir.mkdir(parents=True, exist_ok=True)
 
     run_num = get_next_run_number(parent_dir)
-    tag_suffix = build_tag(config, args.tag)
+    tag_suffix = build_tag(config, tag)
     full_save_dir = parent_dir / f"{run_num}_{tag_suffix}"
     full_save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -664,6 +696,7 @@ def main():
 
     # Create trainer
     TrainerClass = setup_result["trainer_class"]
+    dataset_args = get_dataset_trainer_args(args.dataset, setup_result, config)
     trainer = TrainerClass(
         model=setup_result["model"],
         train_loader=setup_result["train_loader"],
@@ -680,13 +713,7 @@ def main():
         sampling_steps=config.get("sampling_steps", 50),
         potentials=setup_result["potentials"],
         device=device,
-        # Dataset-specific kwargs
-        marginals=setup_result.get("marginals"),
-        scaler=setup_result.get("scaler"),
-        holdout_times=setup_result.get("holdout_times"),
-        train_times=setup_result.get("train_times"),
-        eval_n_steps=config.get("eval_n_steps", 50),
-        eval_num_samples=config.get("eval_num_samples", 2000),
+        **dataset_args,
     )
 
     # Train

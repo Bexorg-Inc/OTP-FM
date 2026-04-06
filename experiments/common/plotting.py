@@ -487,6 +487,7 @@ def plot_trajectories_1d(
     fig, ax = plt.subplots(figsize=(8, 8))
     means = np.asarray(means)
     stds = np.asarray(stds)
+    x0s = np.asarray(x0s).ravel()
 
     n_marginals = len(means)  # K + 2
     t_k = np.atleast_1d(t_k)

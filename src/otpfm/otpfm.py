@@ -35,7 +35,7 @@ class OTPFM(nn.Module):
         flownet (nn.Module | None): Custom velocity network. If provided, flownet_args is ignored.
             Must implement forward(x, t, dt) -> v and optionally get_log_var(t, dt) -> log_var if lossfn is "weighted".
         flownet_args (dict): Arguments for the FlowNetMLP (ignored if flownet is provided).
-        consistency_loss (str): Consistency loss type. One of {"meanflow", "lsd"}. Default: "meanflow".
+        consistency_loss (str): Consistency loss type. One of {"meanflow", "imf", "lsd"}. Default: "meanflow".
         lossfn (str): Loss function type. One of {"mse", "adaptive", "weighted"}. Default: "adaptive".
         ema_ot (bool): Whether to use EMA model for X_tk predictions. Default: True.
         time_sampler (str): Time sampling strategy. Default: "uniform_scaled_marginal".
@@ -47,7 +47,14 @@ class OTPFM(nn.Module):
         solver_type (str | None): Fixed-point solver type. Auto-selected if None.
         solver_kwargs (dict | None): Additional arguments for the solver.
         adaptive_exp (float): Exponent for adaptive loss. Default: 1.0.
+        x_pred (bool): Does FlowNet do v-prediction or x-prediction (as in JiT). Default: False (v-pred).
     """
+
+    X_PRED_DEFAULT_KWARGS = {
+        "lhopital": False,
+        "denom_clamp": 0.05,
+        "x_sampling": False,
+    }
 
     def __init__(
         self,
@@ -68,6 +75,8 @@ class OTPFM(nn.Module):
         solver_type: str = None,
         solver_kwargs: dict | None = None,
         adaptive_exp: float = 1.0,
+        x_pred: bool = False,
+        x_pred_kwargs: dict = None,
     ):
         super().__init__()
         assert not (ema_ot and ema_decay == 0), "EMA decay must be non-zero if EMA OT is enabled"
@@ -84,6 +93,7 @@ class OTPFM(nn.Module):
         self.ema_ot = ema_ot
         self.jvp_clamp = jvp_clamp
         self.adaptive_exp = adaptive_exp
+        self.x_pred = x_pred
 
         # Solver (default: DirectSolver for W2 potentials, AndersonSafe for non-W2 potentials)
         solver_kwargs = solver_kwargs or {}
@@ -120,6 +130,9 @@ class OTPFM(nn.Module):
             self.add_module("flownet_ema", create_ema_flownet(self.flownet))
         else:
             self.flownet_ema = None
+
+        # X-prediction kwargs
+        self.x_pred_kwargs = {**self.X_PRED_DEFAULT_KWARGS, **(x_pred_kwargs or {})}
 
         self._process_potentials()
 
@@ -183,17 +196,28 @@ class OTPFM(nn.Module):
         for ema_param, param in zip(self.flownet_ema.parameters(), self.flownet.parameters()):
             ema_param.mul_(self.ema_decay).add_(param.data, alpha=1 - self.ema_decay)
 
+    def v_func(self, x, t1, t2, net=None):
+        """Mean predicted velocity. Implements either direct velocity prediction or x-prediction as in Refs. [6, 7].
+
+        [6]: Li and He (2025), "Back to Basics: Let Denoising Generative Models Denoise" (https://arxiv.org/abs/2511.13720)
+        [7]: Lu et. al. (2026), "One-step Latent-free Image Generation with Pixel Mean Flows" (https://arxiv.org/abs/2601.22158)
+        """
+        dt = t2 - t1
+        if net is None:
+            net = self.flownet
+
+        if self.x_pred:
+            x_out = net(x, t1, dt)
+            # clipped as in JiT paper
+            v = (x_out - x) / torch.clamp(dt.view(-1, 1), min=self.x_pred_kwargs["denom_clamp"])
+        else:
+            v = net(x, t1, dt)
+
+        return v
+
     def v_func_ema(self, x, t1, t2):
         """Get velocity using EMA model (for stable evaluation)"""
-        if self.flownet_ema is None:
-            return self.v_func(x, t1, t2)
-        dt = t2 - t1
-        return self.flownet_ema(x, t1, dt)
-
-    def v_func(self, x, t1, t2):
-        """Get only the base velocity"""
-        dt = t2 - t1
-        return self.flownet(x, t1, dt)
+        return self.v_func(x, t1, t2, net=self.flownet_ema)
 
     def x_time_dep(self, potential: Potential, t: float | torch.Tensor):
         """Get the time-dependent factor for the potential"""
@@ -440,26 +464,22 @@ class OTPFM(nn.Module):
 
             # Accumulate corrections: sum over k of dV_tks[k] * x_time_dep_t1[k]
             X_t1_corr_total = (dV_tks * x_time_dep_t1).sum(dim=0)  # (bs, d)
+            # Apply accumulated corrections with otp_alpha
+            X_t1 = X_base_t1 + X_t1_corr_total * otp_alpha
 
-            if self.consistency_loss == "meanflow":
+            if self.consistency_loss in ["meanflow", "imf"]:
                 # (K, bs, 1)
                 v_time_dep_t1 = torch.stack(
                     [self.v_time_dep(potential, t1) for potential in potentials_list]
                 )
                 u_corr_t1_total = (dV_tks * v_time_dep_t1).sum(dim=0)  # (bs, d)
+                u_t1 = u_base + u_corr_t1_total * otp_alpha
             elif self.consistency_loss == "lsd":
                 # (K, bs, 1)
                 v_time_dep_t2 = torch.stack(
                     [self.v_time_dep(potential, t2) for potential in potentials_list]
                 )
                 u_corr_t2_total = (dV_tks * v_time_dep_t2).sum(dim=0)  # (bs, d)
-
-            # Apply accumulated corrections with otp_alpha
-            X_t1 = X_base_t1 + X_t1_corr_total * otp_alpha
-
-            if self.consistency_loss == "meanflow":
-                u_t1 = u_base + u_corr_t1_total * otp_alpha
-            elif self.consistency_loss == "lsd":
                 u_t2 = u_base + u_corr_t2_total * otp_alpha
         else:
             X_t1 = X_base_t1
@@ -472,7 +492,7 @@ class OTPFM(nn.Module):
             logger.debug(f"X_base_t1: {X_base_t1[0]}")
             logger.debug(f"u_base: {u_base[0]}")
             logger.debug(f"X_t1: {X_t1[0]}")
-            if self.consistency_loss == "meanflow":
+            if self.consistency_loss in ["meanflow", "imf"]:
                 logger.debug(f"u_t1: {u_t1[0]}")
             elif self.consistency_loss == "lsd":
                 logger.debug(f"u_t2: {u_t2[0]}")
@@ -480,6 +500,10 @@ class OTPFM(nn.Module):
         match self.consistency_loss:
             case "meanflow":
                 loss = self.meanflow_loss(X_t1, t1, t2, u_t1, self.v_func, debug=debug)[0]
+            case "imf":
+                loss = self.improved_meanflow_loss(
+                    X_t1, t1, t2, u_t1, self.v_func, debug=debug, x_func=self.flownet
+                )[0]
             case "lsd":
                 loss = self.lsd_loss(X_t1, t1, t2, u_t2, self.v_func, debug=debug)[0]
             case _:
@@ -500,23 +524,23 @@ class OTPFM(nn.Module):
             t2 (Tensor, shape (batch_size)): end timepoint
             u_t1 (Tensor, shape (batch_size, *dim)): instantaneous velocity to learn at time t1
         """
-        drdr = torch.ones_like(t1)
-        dtdr = torch.zeros_like(t1)
+        ones = torch.ones_like(t1)
+        zeros = torch.zeros_like(t1)
 
         # Ensures full precision for JVP calculation
         with torch.amp.autocast("cuda", enabled=False):
-            v_pred, dvdr = torch.func.jvp(v_func, (X_t1, t1, t2), (u_t1, drdr, dtdr))
+            v_pred, dvdt1 = torch.func.jvp(v_func, (X_t1, t1, t2), (u_t1, ones, zeros))
 
             # Clamp dvdr to prevent loss explosion from extreme derivatives
-            dvdr_clamped = dvdr.clamp(-self.jvp_clamp, self.jvp_clamp)
+            dvdt1_clamped = dvdt1.clamp(-self.jvp_clamp, self.jvp_clamp)
 
             # switches MeanFlow formulation to privilege t1 instead of t2 (jumping forward instead of backward in time)
-            v_tgt = ((t2 - t1) * dvdr_clamped + u_t1).detach()  # no gradient through this
+            v_tgt = ((t2 - t1) * dvdt1_clamped + u_t1).detach()  # no gradient through this
 
             if debug:
                 logger.debug(f"v_pred: {v_pred[0]}")
                 logger.debug(f"v_tgt: {v_tgt[0]}")
-                logger.debug(f"dvdr: {dvdr[0]}, clamped: {dvdr_clamped[0]}")
+                logger.debug(f"dvdt1: {dvdt1[0]}, clamped: {dvdt1_clamped[0]}")
 
             # Get log_var for weighted loss (if enabled)
             log_var = None
@@ -524,6 +548,53 @@ class OTPFM(nn.Module):
                 log_var = self.flownet.get_log_var(t1.squeeze(), (t2 - t1).squeeze())
 
             loss = self.get_loss(v_pred, v_tgt, log_var=log_var)
+
+            return loss, v_pred
+
+    def improved_meanflow_loss(
+        self, X_t1, t1, t2, u_t1, v_func: callable, debug: bool = False, x_func: callable = None
+    ) -> Tensor:
+        """
+        Implements the Improved MeanFlow loss from Ref. [5].
+
+        [5]: Geng et. al. (2026), "Improved Mean Flows: On the Challenges of Fastforward Generative Models" (https://arxiv.org/abs/2512.02012)
+        """
+        ones = torch.ones_like(t1)
+        zeros = torch.zeros_like(t1)
+
+        # Ensures full precision for JVP calculation
+        with torch.amp.autocast("cuda", enabled=False):
+            # Marginal instantaneous velocity prediction from model
+            if not self.x_pred or not self.x_pred_kwargs["lhopital"]:
+                v_pred_t1 = v_func(X_t1, t1, t1)
+            else:
+                # Use L'Hopital's rule to get the instantaneous velocity at t1 as ∂x/∂t2 | t2 = t1
+                v_pred_t1 = torch.func.jvp(lambda t2_in: x_func(X_t1, t1, t2_in), (t1,), (ones,))[
+                    1
+                ].detach()
+
+            v_pred, dvdt1 = torch.func.jvp(v_func, (X_t1, t1, t2), (v_pred_t1, ones, zeros))
+
+            # Clamp dvdt1 to prevent loss explosion from extreme derivatives
+            # Detach to stop gradient through JVP
+            dvdt1_clamped = dvdt1.detach().clamp(-self.jvp_clamp, self.jvp_clamp)
+
+            # Re-parameterized output to regress against conditional instantaneous velocity
+            # Switches MeanFlow formulation to privilege t1 instead of t2 (jumping forward instead of backward in time)
+            U_t1 = v_pred - (t2 - t1) * dvdt1_clamped
+
+            if debug:
+                logger.debug(f"v_pred_t1: {v_pred_t1[0]}")
+                logger.debug(f"v_pred: {v_pred[0]}")
+                logger.debug(f"U_t1: {U_t1[0]}")
+                logger.debug(f"dvdt1: {dvdt1[0]}, clamped: {dvdt1_clamped[0]}")
+
+            # Get log_var for weighted loss (if enabled)
+            log_var = None
+            if self.lossfn == "weighted":
+                log_var = self.flownet.get_log_var(t1.squeeze(), (t2 - t1).squeeze())
+
+            loss = self.get_loss(U_t1, u_t1, log_var=log_var)
 
             return loss, v_pred
 
@@ -595,7 +666,7 @@ class OTPFM(nn.Module):
 
         return loss_per_sample.mean()
 
-    def _sample_n_steps_per_marginal_consistency(self, x0s: Tensor, n_steps: int, v_func: callable):
+    def _sample_n_steps_per_marginal_v(self, x0s: Tensor, n_steps: int, v_func: callable):
         """
         Sample the model in `n_steps` time steps per marginal using the given `v_func`,
         consistency model style: moving forward based on the average velocity.
@@ -620,6 +691,31 @@ class OTPFM(nn.Module):
         ts.append(1.0)
         return torch.stack(xs), torch.tensor(ts)
 
+    def _sample_n_steps_per_marginal_x(self, x0s: Tensor, n_steps: int, ema: bool = True):
+        """
+        Sample the model in `n_steps` time steps per marginal using x_prediction,
+        i.e. simply use the flownet to jump to the next position.
+        """
+        device = x0s.device
+        xs = [x0s.detach().cpu()]
+        ts = []
+        curr_tk = 0.0
+        net = self.flownet_ema if ema else self.flownet
+
+        for j, next_tk in enumerate(self.tks[1:]):
+            next_tk_val = next_tk.item()  # Convert to Python float
+            step_size = (next_tk_val - curr_tk) / n_steps
+            dt = torch.full((x0s.shape[0],), step_size, device=device)
+            for i in range(n_steps):
+                t1_val = i * step_size + curr_tk
+                t1 = torch.full((x0s.shape[0],), t1_val, device=device)
+                x0s = net(x0s, t1, dt)
+                xs.append(x0s.detach().cpu())
+                ts.append(t1_val)
+            curr_tk = next_tk_val
+        ts.append(1.0)
+        return torch.stack(xs), torch.tensor(ts)
+
     def sample(self, x0s: Tensor, n_steps: int, ema: bool = True):
         """
         Sample trajectories from the model.
@@ -633,8 +729,12 @@ class OTPFM(nn.Module):
             xs: Trajectory tensor of shape (total_steps + 1, batch_size, dim)
             t_eval: Time points tensor of shape (total_steps + 1,)
         """
-        v_func = self.v_func_ema if ema else self.v_func
-        return self._sample_n_steps_per_marginal_consistency(x0s, n_steps, v_func)
+        if not self.x_pred or not self.x_pred_kwargs["x_sampling"]:
+            return self._sample_n_steps_per_marginal_v(
+                x0s, n_steps, v_func=self.v_func_ema if ema else self.v_func
+            )
+        else:
+            return self._sample_n_steps_per_marginal_x(x0s, n_steps, ema=ema)
 
 
 __all__ = ["OTPFM"]
