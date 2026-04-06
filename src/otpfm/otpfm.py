@@ -535,11 +535,12 @@ class OTPFM(nn.Module):
              NeurIPS 2025 (https://arxiv.org/abs/2505.18825)
         """
         ones = torch.ones_like(t1)
-        zeros = torch.zeros_like(t1)
+        zeros_t = torch.zeros_like(t1)
+        zeros_x = torch.zeros_like(X_t1)
 
         # Ensures full precision for JVP calculation
         with torch.amp.autocast("cuda", enabled=False):
-            v_pred, dvdt2 = torch.func.jvp(v_func, (X_t1, t1, t2), (zeros, zeros, ones))
+            v_pred, dvdt2 = torch.func.jvp(v_func, (X_t1, t1, t2), (zeros_x, zeros_t, ones))
             dvdt2_clamped = dvdt2.clamp(-self.jvp_clamp, self.jvp_clamp)
 
             v_tgt = (u_t2 - (t2 - t1) * dvdt2_clamped).detach()  # no gradient through this

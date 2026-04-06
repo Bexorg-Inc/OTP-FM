@@ -563,6 +563,12 @@ def main():
     parser.add_argument("--lr", type=float, help="Learning rate")
     parser.add_argument("--batch-size", type=int, help="Batch size")
     parser.add_argument("--strength", type=float, help="Potential strength")
+    parser.add_argument(
+        "--consistency-loss",
+        type=str,
+        choices=["meanflow", "lsd"],
+        help="Consistency loss type (default: from config)",
+    )
 
     # Utility
     parser.add_argument(
@@ -601,6 +607,7 @@ def main():
         "lr": args.lr,
         "batch_size": args.batch_size,
         "strength": args.strength,
+        "consistency_loss": args.consistency_loss,
     }
     for key, value in cli_overrides.items():
         if value is not None:
