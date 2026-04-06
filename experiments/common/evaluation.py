@@ -12,6 +12,7 @@ for comparing generated and ground truth distributions.
 Author(s): Raghav Kansal
 """
 
+import logging
 import warnings
 
 import numpy as np
@@ -27,6 +28,8 @@ try:
     HAS_POT = True
 except ImportError:
     HAS_POT = False
+
+logger = logging.getLogger(__name__)
 
 
 def compute_swd(
