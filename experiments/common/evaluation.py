@@ -85,6 +85,13 @@ def compute_mmd(
 
     Returns:
         MMD value (scalar)
+
+    Note:
+        Memory complexity is O(N^2) where N = n_source + n_target. The pairwise
+        squared L2 distance matrix is computed via the identity
+        ``||x - y||^2 = ||x||^2 + ||y||^2 - 2 <x, y>`` instead of materializing
+        an (N, N, D) intermediate. For N=8000 and D=100 this drops the peak
+        allocation from ~50 GB to ~770 MB.
     """
     # Convert to tensor if numpy
     if isinstance(generated, np.ndarray):
@@ -100,34 +107,36 @@ def compute_mmd(
     source = generated.reshape(generated.shape[0], -1)
     target = ground_truth.reshape(ground_truth.shape[0], -1)
 
-    n_samples = int(source.size()[0]) + int(target.size()[0])
-    total = torch.cat([source, target], dim=0)
+    n_source = int(source.size(0))
+    n_target = int(target.size(0))
+    n_samples = n_source + n_target
+    total = torch.cat([source, target], dim=0)  # (N, D)
 
-    # Compute pairwise L2 distances
-    total0 = total.unsqueeze(0).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
-    total1 = total.unsqueeze(1).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
-    L2_distance = ((total0 - total1) ** 2).sum(2)
+    # Pairwise squared L2 distance via ||x - y||^2 = ||x||^2 + ||y||^2 - 2 <x, y>.
+    # This avoids the (N, N, D) tensor that the naive expand-and-subtract approach
+    # allocates and dominates memory for D >> 1.
+    sq_norms = (total * total).sum(dim=1, keepdim=True)  # (N, 1)
+    L2_distance = sq_norms + sq_norms.t() - 2.0 * (total @ total.t())  # (N, N)
+    # Floating-point error can produce tiny negative values; clamp for numerical safety.
+    L2_distance = L2_distance.clamp_min_(0)
 
     # Automatic bandwidth selection (median heuristic)
-    bandwidth = torch.sum(L2_distance.data) / (n_samples**2 - n_samples)
-    bandwidth /= kernel_mul ** (kernel_num // 2)
+    bandwidth = torch.sum(L2_distance) / (n_samples**2 - n_samples)
+    bandwidth = bandwidth / (kernel_mul ** (kernel_num // 2))
 
-    # Multi-scale bandwidths
-    bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
+    # Sum of Gaussian kernels at different scales (compute in-place to avoid
+    # materializing kernel_num separate (N, N) tensors)
+    kernels = torch.zeros_like(L2_distance)
+    for i in range(kernel_num):
+        bandwidth_i = bandwidth * (kernel_mul**i)
+        kernels.add_(torch.exp(-L2_distance / bandwidth_i))
 
-    # Sum of Gaussian kernels at different scales
-    kernel_val = [torch.exp(-L2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]
-    kernels = sum(kernel_val)
-
-    # Extract kernel blocks
-    n_source = int(source.size()[0])
-    n_target = int(target.size()[0])
+    # Extract kernel blocks and compute MMD^2 estimate
     XX = kernels[:n_source, :n_source]
     YY = kernels[n_source:, n_source:]
     XY = kernels[:n_source, n_source:]
     YX = kernels[n_source:, :n_source]
 
-    # MMD^2 estimate
     loss = torch.mean(XX) + torch.mean(YY) - torch.mean(XY) - torch.mean(YX)
 
     return loss.item()

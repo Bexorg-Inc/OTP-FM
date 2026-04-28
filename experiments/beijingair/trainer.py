@@ -35,6 +35,8 @@ class BeijingTrainer(Trainer):
         epochs: int = 10,
         optimizer: str = "adam",
         grad_clip: float = 0.0,
+        weight_decay: float = 0.0,
+        lr_schedule: str | None = None,
         do_otp: bool = True,
         # Progressive loss weighting
         otp_alpha_type: str = "sigmoid",
@@ -66,6 +68,8 @@ class BeijingTrainer(Trainer):
             epochs=epochs,
             optimizer=optimizer,
             grad_clip=grad_clip,
+            weight_decay=weight_decay,
+            lr_schedule=lr_schedule,
             do_otp=do_otp,
             otp_alpha_type=otp_alpha_type,
             otp_alpha_slope=otp_alpha_slope,
@@ -278,11 +282,10 @@ class BeijingTrainer(Trainer):
         all_times = sorted(self.marginals.keys())
         gt_marginals = {t: self.marginals[t] for t in all_times}
 
-        plotting.plot_1d_trajectories(
+        plotting.plot_trajectories(
             trajectories=trajectories,
-            time_points=self.trajectory_t_eval,
+            t_eval=self.trajectory_t_eval,
             ground_truth_marginals=gt_marginals,
-            train_times=self.train_times,
             save_path=self.save_dir / "trajectories_1d.pdf",
             show=False,
         )

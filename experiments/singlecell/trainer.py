@@ -424,9 +424,22 @@ class EBTrainer(Trainer):
         )
 
     def _find_best_epoch_idx(self) -> int | None:
-        """Find the index (into metric lists) of the epoch with the lowest average of fgd_t1 and fgd_t3."""
-        fgd_t1 = self.losses["fgd_t1"]
-        fgd_t3 = self.losses["fgd_t3"]
+        """Index of epoch with lowest avg MMD = (mmd_t1 + mmd_t3 + 2*mmd_t2_t4) / 4.
+
+        Falls back to (fgd_t1 + fgd_t3)/2 if MMD is unavailable.
+        """
+        if all(self.losses.get(k) for k in ("mmd_t1", "mmd_t3", "mmd_t2_t4")):
+            mmd_t1 = self.losses["mmd_t1"]
+            mmd_t3 = self.losses["mmd_t3"]
+            mmd_rest = self.losses["mmd_t2_t4"]
+            n = min(len(mmd_t1), len(mmd_t3), len(mmd_rest))
+            avg = [(mmd_t1[i] + mmd_t3[i] + 2 * mmd_rest[i]) / 4 for i in range(n)]
+            return int(np.argmin(avg))
+
+        fgd_t1 = self.losses.get("fgd_t1", [])
+        fgd_t3 = self.losses.get("fgd_t3", [])
+        if not fgd_t1 or not fgd_t3:
+            return None
         n = min(len(fgd_t1), len(fgd_t3))
         avg_fgd = [(fgd_t1[i] + fgd_t3[i]) / 2 for i in range(n)]
         return int(np.argmin(avg_fgd))
@@ -434,8 +447,9 @@ class EBTrainer(Trainer):
     def append_to_master_csv(self, master_csv_path: Path | None = None):
         """Append best-epoch metrics to master results CSV.
 
-        Selects the epoch with the lowest average of fgd_t1 and fgd_t3 (holdout times)
-        and saves all metrics from that epoch.
+        Selects the epoch with the lowest avg MMD = (mmd_t1+mmd_t3+2*mmd_t2_t4)/4
+        (falls back to avg of fgd_t1, fgd_t3 if MMD unavailable) and saves all
+        metrics from that epoch.
         """
         if master_csv_path is None:
             master_csv_path = self.save_dir.parent.parent / "master_results.csv"
@@ -444,7 +458,7 @@ class EBTrainer(Trainer):
         best_idx = self._find_best_epoch_idx()
 
         if best_idx is None:
-            self.logger.warning("No fgd_t1/fgd_t3 metrics found, skipping master CSV")
+            self.logger.warning("No metric history found, skipping master CSV")
             return
 
         metric_epochs = self.losses.get("metric_epochs", [])
@@ -453,29 +467,17 @@ class EBTrainer(Trainer):
         row = {"model_dir": model_dir, "best_epoch": best_epoch}
 
         # Add all metric values from the best epoch
-        for key in [
-            "w1_t1",
-            "w1_t2",
-            "w1_t3",
-            "w1_t4",
-            "w1_t2_t4",
-            "swd_t1",
-            "swd_t2",
-            "swd_t3",
-            "swd_t4",
-            "swd_t2_t4",
-            "fgd_t1",
-            "fgd_t2",
-            "fgd_t3",
-            "fgd_t4",
-            "fgd_t2_t4",
-            "w2_t1",
-            "w2_t2",
-            "w2_t3",
-            "w2_t4",
-        ]:
-            if key in self.losses and best_idx < len(self.losses[key]):
-                row[key] = self.losses[key][best_idx]
+        metric_prefixes = ["w1", "swd", "mmd", "fgd", "w2"]
+        time_suffixes = ["t1", "t2", "t3", "t4", "t2_t4"]
+        for metric in metric_prefixes:
+            for time in time_suffixes:
+                key = f"{metric}_{time}"
+                if key in self.losses and best_idx < len(self.losses[key]):
+                    row[key] = self.losses[key][best_idx]
+
+        # Average MMD across all 4 marginals (t1, t3 and rest counts as 2)
+        if all(f"mmd_{t}" in row for t in ("t1", "t3", "t2_t4")):
+            row["avg_mmd"] = (row["mmd_t1"] + row["mmd_t3"] + 2 * row["mmd_t2_t4"]) / 4
 
         # Add training metrics from the best epoch (use closest available)
         if self.losses.get("train_loss"):
@@ -487,10 +489,15 @@ class EBTrainer(Trainer):
                 min(best_epoch, len(self.losses["val_loss"]) - 1)
             ]
 
-        self.logger.info(
-            f"Best epoch: {best_epoch} "
-            f"(avg fgd_t1+t3 = {(row.get('fgd_t1', 0) + row.get('fgd_t3', 0)) / 2:.4f})"
-        )
+        if "avg_mmd" in row:
+            self.logger.info(
+                f"Best epoch: {best_epoch} (avg MMD = {row['avg_mmd']:.4f})"
+            )
+        else:
+            self.logger.info(
+                f"Best epoch: {best_epoch} "
+                f"(avg fgd_t1+t3 = {(row.get('fgd_t1', 0) + row.get('fgd_t3', 0)) / 2:.4f})"
+            )
 
         df_row = pd.DataFrame([row])
 
