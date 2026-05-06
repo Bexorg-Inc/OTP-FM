@@ -1,5 +1,5 @@
 {
-    "_description": "Default configuration for CITE-seq 50D PCA dataset training.",
+    "_description": "Default configuration for CITE-seq 50D PCA dataset training. Apples-to-apples eval with MFM (src/experiments/baselines/metric-flow-matching/mfm/flow_matchers/flow_net_train.py): full per-timepoint data via ot.emd2 (eval_num_samples=null matches MFM's test_dataloader using batch_size=frame_data.shape[0]). traj_skips=20 (10 evals/run instead of 41) + eval_metrics drops 'fgd' (FGD is in fact free at <0.25s/eval on a 50x50 cov matrix, but we no longer need it since best-epoch selection falls back to W1 at holdout times). The remaining per-eval cost is dominated by W1 + W2 + MMD (each CPU-bound at ~20-90s per eval).",
 
     "data_dir": "OTP-FM/data",
     "pca_dim": 50,
@@ -47,7 +47,8 @@
     "sampling_steps": 50,
     "eval_n_steps": 50,
     "eval_num_samples": null,
-    "traj_skips": 5,
+    "eval_metrics": ["w1", "swd", "mmd", "w2"],
+    "traj_skips": 20,
     "num_1d_plot_samples": 5,
 
     "otp_alpha_type": "sigmoid",

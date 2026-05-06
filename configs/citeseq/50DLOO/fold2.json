@@ -1,0 +1,4 @@
+{
+    "_description": "CITE-seq 50D LOO fold 2: holdout day 4 (= time index 2). 5-seed W2 mean W1 ≈ 35.46 (paper baseline OTP-FM W2). Run as: --dataset citeseq --potential {W2,W2Inf} --config OTP-FM/configs/citeseq/50DLOO/fold2.json",
+    "holdout_times": [2]
+}
