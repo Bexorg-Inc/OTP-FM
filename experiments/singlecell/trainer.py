@@ -467,36 +467,6 @@ class EBTrainer(Trainer):
         row = {"model_dir": model_dir, "best_epoch": best_epoch}
 
         # Add all metric values from the best epoch
-<<<<<<< HEAD
-        for key in [
-            "w1_t1",
-            "w1_t2",
-            "w1_t3",
-            "w1_t4",
-            "w1_t2_t4",
-            "swd_t1",
-            "swd_t2",
-            "swd_t3",
-            "swd_t4",
-            "swd_t2_t4",
-            "mmd_t1",
-            "mmd_t2",
-            "mmd_t3",
-            "mmd_t4",
-            "mmd_t2_t4",
-            "fgd_t1",
-            "fgd_t2",
-            "fgd_t3",
-            "fgd_t4",
-            "fgd_t2_t4",
-            "w2_t1",
-            "w2_t2",
-            "w2_t3",
-            "w2_t4",
-        ]:
-            if key in self.losses and best_idx < len(self.losses[key]):
-                row[key] = self.losses[key][best_idx]
-=======
         metric_prefixes = ["w1", "swd", "mmd", "fgd", "w2"]
         time_suffixes = ["t1", "t2", "t3", "t4", "t2_t4"]
         for metric in metric_prefixes:
@@ -508,7 +478,6 @@ class EBTrainer(Trainer):
         # Average MMD across all 4 marginals (t1, t3 and rest counts as 2)
         if all(f"mmd_{t}" in row for t in ("t1", "t3", "t2_t4")):
             row["avg_mmd"] = (row["mmd_t1"] + row["mmd_t3"] + 2 * row["mmd_t2_t4"]) / 4
->>>>>>> 09e44bfc2c0f84e804b12ddb3ce0ebd212fc758d
 
         # Add training metrics from the best epoch (use closest available)
         if self.losses.get("train_loss"):
