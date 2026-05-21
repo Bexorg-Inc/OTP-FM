@@ -1,0 +1,10 @@
+{
+    "_description": "EB 5D leave-two-out (iJKOnet paper, Persiianov et al., 2026, Table 1). Hold out t1 and t3, train on t0/t2/t4. PCA dim 5, normalized space, evaluation metric is W2 distance to held-out marginals. The canonical config is eb_ijko.json (now includes consistency_loss=imf, which beat the meanflow default in 5-seed validation). This file is documentation only and is not loaded by train.py.",
+    "pca_dim": 5,
+    "holdout_times": [1, 3],
+    "epochs": 1500,
+    "lossfn": "adaptive",
+    "consistency_loss": "imf",
+    "eval_num_samples": 2000,
+    "eval_metrics": ["w2", "w1", "fgd"]
+}

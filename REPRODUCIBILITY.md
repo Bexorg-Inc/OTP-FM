@@ -82,13 +82,13 @@ python experiments/train.py --dataset singlecell --config configs/singlecell/eb_
 
 This experiment uses **5-dim PCA**, holds out t1 and t3, trains on t0, t2, t4, and evaluates **W2 distance** (in normalized space) at the held-out times.
 
-**Config:** `configs/singlecell/eb_ijko.json` (layers on top of `defaults.json` → `W2.json`)
+**Config:** `configs/singlecell/5DL2O/eb_ijko.json` (layers on top of `defaults.json` → `W2.json`). Includes `consistency_loss=imf` since Phase-2 5-seed validation (Avg W2 over (t1, t3) = 0.8268 +/- 0.0030) showed IMF beats the meanflow default (0.8331 single-seed) on this experiment.
 
 **Run command:**
 
 ```bash
 python experiments/train.py --dataset singlecell --potential w2 \
-    --config configs/singlecell/eb_ijko.json --tag ijko_w2
+    --config configs/singlecell/5DL2O/eb_ijko.json --tag ijko_w2
 ```
 
 **Notes:**
