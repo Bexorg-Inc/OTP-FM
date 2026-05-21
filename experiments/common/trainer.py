@@ -173,7 +173,7 @@ class Trainer:
         file_handler.setLevel(logging.INFO)
         formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+        logging.getLogger().addHandler(file_handler)
         self.log_file = log_file
 
     def _setup_optimizer(self, optimizer: str, lr: float) -> None:

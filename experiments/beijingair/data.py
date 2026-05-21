@@ -47,13 +47,13 @@ def download_beijing_data(data_dir: Path = Path("data/beijing")) -> Path:
 
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(data_dir)
-    zip_path.unlink()
+    zip_path.unlink(missing_ok=True)
 
     nested_zip_path = data_dir / f"{DIR_NAME}.zip"
     if nested_zip_path.exists():
         with zipfile.ZipFile(nested_zip_path, "r") as zip_ref:
             zip_ref.extractall(data_dir)
-        nested_zip_path.unlink()
+        nested_zip_path.unlink(missing_ok=True)
 
     return extracted_dir
 
