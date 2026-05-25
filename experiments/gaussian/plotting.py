@@ -32,12 +32,12 @@ distD_labels = {
     "MMD_Poly": r"$\mathcal{D} = \mathrm{MMD}^2_\mathrm{Poly}$",
 }
 
+# Labels for r(D) dependence of the potential on the distance
 rD_labels = {
-    "-D": r"$r(\mathcal{D})=- \mathcal{D}$",
-    "-D^2": r"$r(\mathcal{D})=- \mathcal{D}^2$",
-    "1/D": r"$r(\mathcal{D})=\frac{1}{\mathcal{D}}$",
+    "-D": r"$r(\mathcal{D}) = -\mathcal{D}$",
+    "-D^2": r"$r(\mathcal{D}) = -\mathcal{D}^2$",
+    "1/D": r"$r(\mathcal{D}) = 1/\mathcal{D}$",
 }
-
 
 def _compute_lambda(t: np.ndarray, t_k: float, lambda_width: float, lambda_type: str) -> np.ndarray:
     """Compute lambda(t) for a single intermediate potential."""
