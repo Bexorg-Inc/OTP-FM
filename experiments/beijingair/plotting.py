@@ -183,8 +183,7 @@ def _setup_marginal_xaxis(ax, plot_times, holdout_times, xlabel: str = ""):
     """Configure x-axis with marginal labels and held-out annotations."""
     holdout_set = set(holdout_times)
     tick_labels = [
-        f"$t_{{{t}}}$ (held-out)" if t in holdout_set else f"$t_{{{t}}}$"
-        for t in plot_times
+        f"$t_{{{t}}}$ (held-out)" if t in holdout_set else f"$t_{{{t}}}$" for t in plot_times
     ]
     ax.set_xticks(plot_times)
     ax.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=9)
@@ -315,8 +314,13 @@ def plot_trajectories(
         t_eval = np.linspace(0, 1, n_steps)
 
     for i in range(num_traj):
-        ax.plot(t_eval * 12, trajectories_plot[:, i], alpha=alpha_traj,
-                linewidth=linewidth_traj, color="gray")
+        ax.plot(
+            t_eval * 12,
+            trajectories_plot[:, i],
+            alpha=alpha_traj,
+            linewidth=linewidth_traj,
+            color="gray",
+        )
 
     _setup_marginal_xaxis(ax, plot_times, holdout_times)
     ax.set_ylabel("PM2.5")

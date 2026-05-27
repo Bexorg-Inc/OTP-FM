@@ -277,9 +277,7 @@ class EBTrainer(Trainer):
 
             if need_inv:
                 if self.scaler is not None:
-                    gt_inv = torch.from_numpy(
-                        self.scaler.inverse_transform(gt_norm.cpu().numpy())
-                    )
+                    gt_inv = torch.from_numpy(self.scaler.inverse_transform(gt_norm.cpu().numpy()))
                 else:
                     gt_inv = gt_norm
                 gen_inv = torch.from_numpy(inv_trajectories[target_idx])
@@ -490,9 +488,7 @@ class EBTrainer(Trainer):
             ]
 
         if "avg_mmd" in row:
-            self.logger.info(
-                f"Best epoch: {best_epoch} (avg MMD = {row['avg_mmd']:.4f})"
-            )
+            self.logger.info(f"Best epoch: {best_epoch} (avg MMD = {row['avg_mmd']:.4f})")
         else:
             self.logger.info(
                 f"Best epoch: {best_epoch} "

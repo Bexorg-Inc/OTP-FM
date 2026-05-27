@@ -1,8 +1,8 @@
 """
 CITE-seq specific trainer for NeurIPS 2022 multimodal single-cell data.
 
-Follows the evaluation protocol from Neklyudov et al. (2024) 
-"A Computational Framework for Solving Wasserstein Lagrangian Flows" (WLF): 
+Follows the evaluation protocol from Neklyudov et al. (2024)
+"A Computational Framework for Solving Wasserstein Lagrangian Flows" (WLF):
 leave-one-out evaluation with all metrics computed
 in original PCA space (after inverse normalization).
 
@@ -185,7 +185,11 @@ class CiteSeqTrainer(Trainer):
         self.model.eval()
         source_time = min(self.train_times)
         source = self.marginals[source_time]
-        num_samples = len(source) if self.eval_num_samples is None else min(self.eval_num_samples, len(source))
+        num_samples = (
+            len(source)
+            if self.eval_num_samples is None
+            else min(self.eval_num_samples, len(source))
+        )
         x0 = source[:num_samples].to(self.device)
 
         trajectories, t_eval = self.model.sample(x0, n_steps=self.eval_n_steps, ema=self.ema_eval)
@@ -274,14 +278,16 @@ class CiteSeqTrainer(Trainer):
             t_norm = normalize_time(t)
             target_idx = np.argmin(np.abs(t_eval - t_norm))
 
-            num_gt = len(self.marginals[t]) if self.eval_num_samples is None else min(self.eval_num_samples, len(self.marginals[t]))
+            num_gt = (
+                len(self.marginals[t])
+                if self.eval_num_samples is None
+                else min(self.eval_num_samples, len(self.marginals[t]))
+            )
             gt_norm = self.marginals[t][:num_gt]
             gen_inv = torch.from_numpy(inv_trajectories[target_idx])
 
             if self.scaler is not None:
-                gt_inv = torch.from_numpy(
-                    self.scaler.inverse_transform(gt_norm.cpu().numpy())
-                )
+                gt_inv = torch.from_numpy(self.scaler.inverse_transform(gt_norm.cpu().numpy()))
             else:
                 gt_inv = gt_norm
 

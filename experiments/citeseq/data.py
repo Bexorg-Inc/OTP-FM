@@ -91,7 +91,9 @@ def load_citeseq_data(
         )
 
     df = pd.read_csv(data_path)
-    logger.info(f"Loaded CITE-seq data: {len(df)} cells, {len(df.columns) - 1} PCs from {data_path}")
+    logger.info(
+        f"Loaded CITE-seq data: {len(df)} cells, {len(df.columns) - 1} PCs from {data_path}"
+    )
 
     labels = df["samples"].values.astype(np.int64)
     unique_times = sorted(set(labels))
@@ -112,9 +114,7 @@ def load_citeseq_data(
     for t in unique_times:
         mask = labels == t
         marginals[t] = torch.tensor(pcs[mask], dtype=torch.float32)
-        logger.info(
-            f"  Time idx {t} (day {CITE_IDX_TO_DAY[t]}): {marginals[t].shape[0]} cells"
-        )
+        logger.info(f"  Time idx {t} (day {CITE_IDX_TO_DAY[t]}): {marginals[t].shape[0]} cells")
 
     holdout_times = holdout_times if holdout_times is not None else [1]
     train_times = [t for t in unique_times if t not in holdout_times]

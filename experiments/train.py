@@ -674,8 +674,14 @@ def main():
     parser.add_argument("--hidden-dim", type=int, help="Hidden layer dimension")
     parser.add_argument("--num-hidden-layers", type=int, help="Number of hidden layers")
     parser.add_argument("--dropout", type=float, help="Dropout rate")
-    parser.add_argument("--otp-alpha-mean-scale", type=float, help="Sigmoid midpoint scale (higher = more time at low alpha)")
-    parser.add_argument("--otp-alpha-slope", type=float, help="Sigmoid slope (steepness of transition)")
+    parser.add_argument(
+        "--otp-alpha-mean-scale",
+        type=float,
+        help="Sigmoid midpoint scale (higher = more time at low alpha)",
+    )
+    parser.add_argument(
+        "--otp-alpha-slope", type=float, help="Sigmoid slope (steepness of transition)"
+    )
     parser.add_argument(
         "--x-pred",
         action=argparse.BooleanOptionalAction,
