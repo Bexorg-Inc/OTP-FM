@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Labels for distance functions
 distD_labels = {
-    "W2": r"$\mathcal{D} = \mathcal{W}_2$",
+    "W2": r"$\mathcal{D} = \mathcal{W}_2^2$",
     "W2inf": r"$\mathcal{D} = \mathcal{W}_2^\infty$",
     "KL": r"$\mathcal{D} = \mathrm{KL}$",
     "MMD_RBF": r"$\mathcal{D} = \mathrm{MMD}^2_\mathrm{RBF}$",
