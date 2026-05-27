@@ -1,5 +1,5 @@
 {
-    "_description": "EB 100D leave-out t3, W2 (OT-coupled). Best avg MMD ≈ 0.067 (t3* ≈ 0.07).",
+    "_description": "EB 100D leave-out t3, W2 (OT-coupled).",
     "holdout_times": [3],
     "lossfn": "mse",
     "strength": 300,

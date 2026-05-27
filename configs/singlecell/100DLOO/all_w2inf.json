@@ -1,5 +1,5 @@
 {
-    "_description": "EB 100D train-on-all, W2Inf (no OT coupling). Best avg MMD ≈ 0.066.",
+    "_description": "EB 100D train-on-all, W2Inf (no OT coupling).",
     "holdout_times": [],
     "lossfn": "mse",
     "strength": 300,

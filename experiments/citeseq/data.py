@@ -8,10 +8,6 @@ hematopoietic stem and progenitor cells (HSPCs).
 PCA is pre-computed (50 PCs). The CSV file ``cite_pca50.csv`` contains the "samples"
 column (timepoint index 0–3 mapping to days 2, 3, 4, 7) and columns x1–x50.
 
-References:
-    Neklyudov et al. "A Computational Framework for Solving Wasserstein Lagrangian Flows"
-    Wang et al. "VGFM" — https://github.com/DongyiWang-66/VGFM
-
 Author(s): Raghav Kansal
 """
 

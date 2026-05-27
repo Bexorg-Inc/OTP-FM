@@ -152,7 +152,7 @@ def compute_w1_distance(
     """
     W1 (Earth Mover's Distance) with Euclidean cost.
 
-    Matches the protocol in Neklyudov et al. (2024) "Wasserstein Lagrangian Flows"
+    Matches the protocol in Neklyudov et al. (2024)
     which uses ``ot.emd2`` on Euclidean distance with ``numItermax=1e7``.
     """
     if not HAS_POT:

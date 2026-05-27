@@ -1,5 +1,5 @@
 {
-    "_description": "EB 5D leave-two-out (iJKOnet paper, Persiianov et al., 2026, Table 1). Hold out t1 and t3, train on t0/t2/t4. Metric: W2 distance in normalized space. consistency_loss=imf reflects the Phase-2 winner over the original meanflow default: 5-seed mean Avg W2 over (t1, t3) = 0.8268 +/- 0.0030 (vs 0.820 paper baseline / 0.8331 with meanflow). Layers on singlecell/defaults.json + W2.json or W2Inf.json.",
+    "_description": "EB 5D leave-two-out (iJKOnet paper, Persiianov et al., 2026, Table 1). Hold out t1 and t3, train on t0/t2/t4. Metric: W2 distance in normalized space. Layers on singlecell/defaults.json + W2.json or W2Inf.json.",
     "pca_dim": 5,
     "holdout_times": [1, 3],
     "strength": 200.0,

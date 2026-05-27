@@ -1,5 +1,5 @@
 {
-    "_description": "EB 100D leave-two-out: pca_dim=100, hold out t1 and t3, train on t0/t2/t4. Best config from the v3 ablation deep-dive (results/ablations/summary.md): IMF consistency loss + sigmoid curriculum (slope=12, mean_scale=0) + strength=1000 + Gaussian lambda width=0.33. 5-seed mean Avg MMD = 0.0670 +/- 0.0009 with W2 (best result in the ablation table). Avg MMD = (mmd_t1 + mmd_t3 + 2 * mmd_rest) / 4. Layers on singlecell/defaults.json + W2.json or W2Inf.json.",
+    "_description": "EB 100D leave-two-out: pca_dim=100, hold out t1 and t3, train on t0/t2/t4. Layers on singlecell/defaults.json + W2.json or W2Inf.json.",
     "pca_dim": 100,
     "holdout_times": [1, 3],
     "strength": 1000,

@@ -1,5 +1,5 @@
 {
-    "_description": "EB LOO fold 2 (W2Inf, no OT coupling): hold out t2. Best W1 ≈ 0.732.",
+    "_description": "EB LOO fold 2 (W2Inf, no OT coupling): hold out t2.",
     "pca_dim": 5,
     "holdout_times": [2],
     "ot_coupling": false,

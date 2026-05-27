@@ -1,5 +1,5 @@
 {
-    "_description": "Default configuration for Beijing air quality PM2.5 dataset training. Phase-2 v3b improvements (IMF consistency loss + sigmoid mu=0) are folded in here: 5-seed Avg W2 over all 12 timepoints = 16.7759 +/- 1.6033 (W2) and 23.7676 +/- 1.2661 (W2Inf), better than meanflow + mu=0.5.",
+    "_description": "Default configuration for Beijing air quality PM2.5 dataset training.",
 
     "data_dir": "data/beijing",
     "normalize": true,

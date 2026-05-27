@@ -1,8 +1,9 @@
 """
 CITE-seq specific trainer for NeurIPS 2022 multimodal single-cell data.
 
-Follows the evaluation protocol from Neklyudov et al. (2024) "Wasserstein
-Lagrangian Flows": leave-one-out evaluation with all metrics computed
+Follows the evaluation protocol from Neklyudov et al. (2024) 
+"A Computational Framework for Solving Wasserstein Lagrangian Flows" (WLF): 
+leave-one-out evaluation with all metrics computed
 in original PCA space (after inverse normalization).
 
 Author(s): Raghav Kansal
