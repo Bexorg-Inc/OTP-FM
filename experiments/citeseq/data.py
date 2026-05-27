@@ -12,6 +12,7 @@ Author(s): Raghav Kansal
 """
 
 import logging
+import urllib.request
 from pathlib import Path
 
 import numpy as np
@@ -22,11 +23,30 @@ from torch.utils.data import DataLoader, Dataset, random_split
 logger = logging.getLogger(__name__)
 
 CITE_CSV_FILENAME = "cite_pca50.csv"
+CITE_CSV_URL = "https://raw.githubusercontent.com/DongyiWang-66/VGFM/main/data/cite_pca50.csv"
 
 # Cite-seq has 4 timepoints: days 2, 3, 4, 7
 CITE_DAYS = [2, 3, 4, 7]
 CITE_DAY_TO_IDX = {day: idx for idx, day in enumerate(CITE_DAYS)}
 CITE_IDX_TO_DAY = {idx: day for day, idx in CITE_DAY_TO_IDX.items()}
+
+
+def download_citeseq_data(data_dir: Path = Path("data")) -> Path:
+    """Download ``cite_pca50.csv`` if not present.
+
+    Pulls the pre-computed 50-PC CSV from the VGFM repository
+    (`DongyiWang-66/VGFM`, ``data/cite_pca50.csv``).
+    """
+    data_dir = Path(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    filepath = data_dir / CITE_CSV_FILENAME
+
+    if not filepath.exists():
+        logger.info(f"Downloading CITE-seq data from {CITE_CSV_URL}...")
+        urllib.request.urlretrieve(CITE_CSV_URL, filepath)
+        logger.info(f"Data downloaded to {filepath}")
+
+    return filepath
 
 
 class MaxStdScaler:
@@ -72,7 +92,7 @@ def load_citeseq_data(
     PCA columns, pre-computed following Tong et al. (2023).
 
     Args:
-        data_dir: Directory containing ``cite_pca50.csv``
+        data_dir: Directory containing/to download ``cite_pca50.csv``
         pca_dim: Number of PCA dimensions to use (max 50)
         normalize: Whether to normalize (center + divide by max std)
         ot_coupling: Whether to compute OT couplings
@@ -82,13 +102,7 @@ def load_citeseq_data(
     Returns:
         Dictionary with pcs, labels, marginals, scaler, train_times, etc.
     """
-    data_path = Path(data_dir) / CITE_CSV_FILENAME
-    if not data_path.exists():
-        raise FileNotFoundError(
-            f"CITE-seq data not found at {data_path}.\n"
-            f"Download cite_pca50.csv from https://github.com/DongyiWang-66/VGFM/blob/main/data/cite_pca50.csv\n"
-            f"and place it in {data_dir}/"
-        )
+    data_path = download_citeseq_data(data_dir)
 
     df = pd.read_csv(data_path)
     logger.info(
