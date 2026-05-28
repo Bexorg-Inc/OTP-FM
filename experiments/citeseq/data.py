@@ -1,7 +1,7 @@
 """
-CITE-seq dataset loading and preprocessing for NeurIPS 2022 multimodal single-cell data.
+CITE dataset loading and preprocessing for NeurIPS 2022 multimodal single-cell data.
 
-The CITE-seq dataset comes from the NeurIPS 2022 Multimodal Single-cell Integration
+The CITE dataset comes from the NeurIPS 2022 Multimodal Single-cell Integration
 challenge (Burkhardt et al., 2022). It contains single-cell measurements from CD34+
 hematopoietic stem and progenitor cells (HSPCs).
 
@@ -195,7 +195,7 @@ def compute_ot_alignments(
 
 class CiteSeqMultiMarginalDataset(Dataset):
     """
-    PyTorch Dataset for CITE-seq multi-marginal training.
+    PyTorch Dataset for CITE multi-marginal training.
 
     Each sample contains one cell from each training time point,
     either with independent or OT-coupled pairing.
@@ -293,7 +293,7 @@ def create_citeseq_dataloaders(
     val_split: float = 0.2,
     ot_alignments: dict | None = None,
 ) -> tuple[DataLoader, DataLoader]:
-    """Create train/val DataLoaders for CITE-seq dataset."""
+    """Create train/val DataLoaders for CITE dataset."""
     dataset = CiteSeqMultiMarginalDataset(
         pcs, labels, holdout_times=holdout_times, ot_alignments=ot_alignments
     )

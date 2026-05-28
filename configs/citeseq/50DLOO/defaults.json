@@ -1,3 +1,3 @@
 {
-    "_description": "CITE-seq 50D leave-one-out (Wang et al., 2025 / VGFM protocol). pca_dim=50 (already the citeseq default), 4 timepoints (days 2/3/4/7), 2 folds: holdout day 3 (fold 1) and holdout day 4 (fold 2). Metric: W1 distance to held-out marginal in original PCA space. Phase-2 winner from the multi-dataset v3 sweep is the 'default' variant (no IMF, no mu=0 changes), so per-fold configs only override holdout_times. Layers on citeseq/defaults.json + citeseq/W2.json or W2Inf.json. This file is not loaded directly."
+    "_description": "CITE-seq 50D leave-one-out. 4 timepoints (days 2/3/4/7), 2 folds: holdout day 3 (fold 1) and holdout day 4 (fold 2). Layers on citeseq/defaults.json + citeseq/W2.json or W2Inf.json. This file is not loaded directly."
 }

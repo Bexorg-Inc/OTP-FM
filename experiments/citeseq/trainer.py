@@ -1,8 +1,7 @@
 """
-CITE-seq specific trainer for NeurIPS 2022 multimodal single-cell data.
+CITE specific trainer for NeurIPS 2022 multimodal single-cell data.
 
-Follows the evaluation protocol from Neklyudov et al. (2024)
-"A Computational Framework for Solving Wasserstein Lagrangian Flows" (WLF):
+Follows the evaluation protocol from previous work:
 leave-one-out evaluation with all metrics computed
 in original PCA space (after inverse normalization).
 
@@ -34,10 +33,7 @@ from experiments.singlecell import plotting
 
 class CiteSeqTrainer(Trainer):
     """
-    Trainer for CITE-seq single-cell experiments.
-
-    Extends the base Trainer with CITE-seq-specific evaluation
-    (leave-one-out W1 in normalized space, matching WLF paper protocol).
+    Trainer for CITE single-cell experiments. Extends the base Trainer with CITE-specific evaluation.
     """
 
     def __init__(
@@ -251,7 +247,7 @@ class CiteSeqTrainer(Trainer):
 
         All metrics (W1, SWD, MMD, FGD, W2) are computed after inverse-transforming
         both generated and ground truth samples back to original PCA space, matching
-        the evaluation protocol in Neklyudov et al. (2024).
+        the evaluation protocol of prior work.
         """
         if self.marginals is None or not self.epoch_trajectories:
             return

@@ -71,19 +71,19 @@ python experiments/train.py --dataset singlecell --config configs/singlecell/eb_
 ### EB 5D Leave-Two-Out
 
 This experiment uses **5-dim PCA**, holds out t1 and t3, trains on t0, t2, t4, and evaluates **W2 distance** (in normalized space) at the held-out times,
-following the setup of [Persiianov et. al. (2025)](https://arxiv.org/abs/2506.01502).
+following the setup of [Persiianov et. al. (2025)](https://arxiv.org/abs/2506.01502). Not included in ICML 2026 paper because of time constraints.
 
-**Config:** `configs/singlecell/5DL2O/eb_ijko.json` (layers on top of `defaults.json` → `W2.json`). Includes `consistency_loss=imf` since Phase-2 5-seed validation (Avg W2 over (t1, t3) = 0.8268 +/- 0.0030) showed IMF beats the meanflow default (0.8331 single-seed) on this experiment.
+**Config:** `configs/singlecell/5DL2O/defaults.json` (layers on top of `defaults.json` → `W2.json`). Includes `consistency_loss=imf` since validation (Avg W2 over (t1, t3) = 0.8268 +/- 0.0030) showed IMF beats the meanflow default (0.8331 single-seed) on this experiment.
 
 **Run command:**
 
 ```bash
 python experiments/train.py --dataset singlecell --potential w2 \
-    --config configs/singlecell/5DL2O/eb_ijko.json --tag ijko_w2
+    --config configs/singlecell/5DL2O/defaults.json --tag ebl2o
 ```
 
 **Notes:**
-- W2 is computed in normalized (standardized) space, consistent with the iJKOnet paper and previous benchmarks.
+- W2 is computed in normalized (standardized) space, consistent with Persiianov 2025 and previous benchmarks.
 
 ### EB 100D Leave-One-Out
 

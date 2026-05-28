@@ -184,7 +184,7 @@ def plot_losses(
     ax_w2.set_title("Wasserstein-2 Distance", fontsize=fontsize)
     ax_w2.grid(True, alpha=0.3)
 
-    # ===== Panel 6: W1 Metrics (normalized space, WLF protocol) =====
+    # ===== Panel 6: W1 Metrics (normalized space) =====
     ax_w1 = axes[5]
     for key, color in time_colors.items():
         w1_key = f"w1_{key}"
@@ -203,7 +203,7 @@ def plot_losses(
     ax_w1.set_ylabel("W1 (normalized)", fontsize=fontsize)
     ax_w1.set_xlim(0, len(losses["train_loss"]))
     ax_w1.legend(loc="best", fontsize=fontsize - 2)
-    ax_w1.set_title("Wasserstein-1 (WLF)", fontsize=fontsize)
+    ax_w1.set_title("Wasserstein-1 (Normalized Space)", fontsize=fontsize)
     ax_w1.grid(True, alpha=0.3)
 
     plt.tight_layout()

@@ -1,5 +1,5 @@
 {
-    "_description": "CITE-seq 5D LOO fold 2: holdout day 4 (= time index 2). v3_5d settings (IMF + mu=0). Run as: --dataset citeseq --potential {W2,W2Inf} --config OTP-FM/configs/citeseq/5DLOO/fold2.json",
+    "_description": "CITE-seq 5D LOO fold 2: holdout day 4 (= time index 2). Run as: --dataset citeseq --potential {W2,W2Inf} --config configs/citeseq/5DLOO/fold2.json",
     "pca_dim": 5,
     "holdout_times": [2],
     "consistency_loss": "imf",

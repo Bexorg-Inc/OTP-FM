@@ -234,8 +234,8 @@ class EBTrainer(Trainer):
     def _compute_metrics(self, epoch: int, do_mmd: bool = False):
         """Compute metrics at all time points.
 
-        W1 is computed in normalized (standardized) space to match the WLF paper
-        protocol (Neklyudov et al. 2024). All other metrics use inverse-transformed
+        W1 is computed in normalized (standardized) space to match the protocol of Neklyudov et al. (2024), WLF.
+        All other metrics use inverse-transformed
         (original PCA) space. Only metrics listed in ``self.eval_metrics`` are computed.
         """
         if self.marginals is None or not self.epoch_trajectories:

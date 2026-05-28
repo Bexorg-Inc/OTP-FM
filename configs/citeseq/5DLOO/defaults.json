@@ -1,3 +1,3 @@
 {
-    "_description": "CITE-seq 5D leave-one-out (VGFM-style W1 in normalized PCA space). pca_dim=5 + same 2-fold protocol as citeseq/50DLOO/. W1_norm is in MaxStdScaler-normalized PCA space (the trainer reports raw-PCA W1; divide by scale_ to compare). Layers on citeseq/defaults.json + citeseq/W2.json or W2Inf.json. This file is not loaded directly."
+    "_description": "CITE-seq 5D leave-one-out. Layers on citeseq/defaults.json + citeseq/W2.json or W2Inf.json. This file is not loaded directly."
 }
