@@ -30,7 +30,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials". Includes code for reproducing [Kansal et. al. 2026]().
+A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials". Includes code for reproducing [Kansal et. al., ICML 2026]().
 
 ## Overview
 
@@ -208,7 +208,7 @@ model = OTPFM(
 If you use this code in your research, please cite:
 
 ```
-TODO
+Coming soon.
 ```
 
 ## Reproducing Experiments
