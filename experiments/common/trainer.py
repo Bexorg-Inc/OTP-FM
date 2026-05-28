@@ -43,6 +43,8 @@ class Trainer:
         epochs: int = 10,
         optimizer: str = "adam",
         grad_clip: float = 0.0,
+        weight_decay: float = 0.0,
+        lr_schedule: str | None = None,
         do_otp: bool = True,
         # Progressive loss weighting
         otp_alpha_type: str = "sigmoid",
@@ -52,6 +54,7 @@ class Trainer:
         sampling_steps: int = 50,
         ema_eval: bool = True,
         traj_skips: int | None = None,
+        save_skips: int | None = None,
         # Model
         potentials: OrderedDict | None = None,
         device: str = "cpu",
@@ -89,6 +92,8 @@ class Trainer:
         self.epochs = epochs
         self.optimizer_name = optimizer
         self.grad_clip = grad_clip
+        self.weight_decay = weight_decay
+        self.lr_schedule = lr_schedule
         self.do_otp = do_otp
 
         # Sampling/evaluation
@@ -110,6 +115,18 @@ class Trainer:
         self.logger.info(f"Epochs: {epochs}, LR: {lr}, Optimizer: {optimizer}")
         if self.potentials:
             self.logger.info(f"Potentials: {list(self.potentials.keys())}")
+
+        n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        self.logger.info(f"Model: {type(model).__name__} ({n_params:,} trainable params)")
+        if hasattr(model, "flownet"):
+            fn = model.flownet
+            self.logger.info(
+                f"  FlowNet: {getattr(fn, 'hidden_dim', '?')}d × "
+                f"{getattr(fn, 'num_hidden_layers', '?')} layers, "
+                f"residual_every={getattr(fn, 'residual_every', '?')}, "
+                f"dropout={getattr(fn, 'dropout_rate', getattr(fn, 'dropout', '?'))}, "
+                f"layernorm={getattr(fn, 'layernorm', '?')}"
+            )
 
         # Models directory
         self.models_dir = self.save_dir / "models"
@@ -138,7 +155,8 @@ class Trainer:
             midpoint=0.5 * otp_alpha_mean_scale,
         )
 
-        # Number of epochs to skip between saving checkpoints and model evaluation
+        # traj_skips: how often to run evaluation (compute metrics)
+        # save_skips: how often to save model checkpoints and trajectories to disk
         if traj_skips is None:
             if epochs <= 30:
                 self.traj_skips = 1
@@ -146,6 +164,7 @@ class Trainer:
                 self.traj_skips = min(epochs // 20, 50)
         else:
             self.traj_skips = traj_skips
+        self.save_skips = save_skips if save_skips is not None else self.traj_skips
 
     def _setup_file_logging(self) -> None:
         """Set up file handler for logging."""
@@ -158,20 +177,34 @@ class Trainer:
         self.log_file = log_file
 
     def _setup_optimizer(self, optimizer: str, lr: float) -> None:
-        """Set up the optimizer."""
+        """Set up the optimizer and optional LR scheduler."""
+        wd = getattr(self, "weight_decay", 0.0)
         match optimizer:
             case "adam":
-                self.optimizers["flow"] = torch.optim.Adam(self.model.flownet.parameters(), lr=lr)
+                self.optimizers["flow"] = torch.optim.Adam(
+                    self.model.flownet.parameters(), lr=lr, weight_decay=wd
+                )
+            case "adamw":
+                self.optimizers["flow"] = torch.optim.AdamW(
+                    self.model.flownet.parameters(), lr=lr, weight_decay=wd or 1e-2
+                )
             case "sgd":
                 self.optimizers["flow"] = torch.optim.SGD(
-                    self.model.flownet.parameters(), lr=lr, momentum=0.9
+                    self.model.flownet.parameters(), lr=lr, momentum=0.9, weight_decay=wd
                 )
             case "rmsprop":
                 self.optimizers["flow"] = torch.optim.RMSprop(
-                    self.model.flownet.parameters(), lr=lr
+                    self.model.flownet.parameters(), lr=lr, weight_decay=wd
                 )
             case _:
                 raise ValueError(f"Invalid optimizer: {optimizer}")
+
+        self.scheduler = None
+        sched_type = getattr(self, "lr_schedule", None)
+        if sched_type == "cosine":
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizers["flow"], T_max=self.epochs, eta_min=lr * 0.01
+            )
 
     def train_epoch(self, epoch: int) -> tuple[float, Tensor]:
         """
@@ -345,8 +378,14 @@ class Trainer:
             val_loss, _ = self.validate()
             self.losses["val_loss"].append(val_loss)
 
-            if (((epoch + 1) % self.traj_skips) == 0) or (epoch == self.epochs - 1):
-                self.save_checkpoint(f"model_epoch_{epoch + 1:03d}.pt")
+            if self.scheduler is not None:
+                self.scheduler.step()
+
+            is_eval_epoch = (((epoch + 1) % self.traj_skips) == 0) or (epoch == self.epochs - 1)
+            is_save_epoch = (((epoch + 1) % self.save_skips) == 0) or (epoch == self.epochs - 1)
+            if is_eval_epoch:
+                if is_save_epoch:
+                    self.save_checkpoint(f"model_epoch_{epoch + 1:03d}.pt")
                 self.on_epoch_end(epoch, batch)
 
             # Log epoch summary

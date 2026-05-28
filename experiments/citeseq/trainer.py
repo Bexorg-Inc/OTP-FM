@@ -1,5 +1,9 @@
 """
-Single-cell specific trainer for Embryoid Body (EB) data.
+CITE specific trainer for NeurIPS 2022 multimodal single-cell data.
+
+Follows the evaluation protocol from previous work:
+leave-one-out evaluation with all metrics computed
+in original PCA space (after inverse normalization).
 
 Author(s): Raghav Kansal
 """
@@ -15,6 +19,7 @@ from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
 from experiments import Trainer
+from experiments.citeseq.data import CITE_IDX_TO_DAY
 from experiments.evaluation import (
     compute_fgd,
     compute_mmd,
@@ -26,11 +31,9 @@ from experiments.plotting import plot_target_vs_learned
 from experiments.singlecell import plotting
 
 
-class EBTrainer(Trainer):
+class CiteSeqTrainer(Trainer):
     """
-    Trainer for Embryoid Body (EB) single-cell experiments.
-
-    Extends the base Trainer with EB-specific plotting and evaluation metrics.
+    Trainer for CITE single-cell experiments. Extends the base Trainer with CITE-specific evaluation.
     """
 
     def __init__(
@@ -57,20 +60,20 @@ class EBTrainer(Trainer):
         # Model
         potentials: OrderedDict | None = None,
         device: str = "cpu",
-        # EB-specific
+        # CITE-seq-specific
         scaler=None,
         reshuffle_each_epoch: bool = True,
         marginals: dict[int, Tensor] | None = None,
         train_times: list[int] | None = None,
         holdout_times: list[int] | None = None,
         eval_n_steps: int = 50,
-        eval_num_samples: int = 2000,
+        eval_num_samples: int | None = None,
         eval_metrics: list[str] | None = None,
         traj_skips: int | None = None,
+        save_skips: int | None = None,
         num_1d_plot_samples: int = 5,
         animation_duration: int = 500,
     ):
-        """Initialize the EB trainer."""
         super().__init__(
             model=model,
             train_loader=train_loader,
@@ -88,6 +91,8 @@ class EBTrainer(Trainer):
             otp_alpha_mean_scale=otp_alpha_mean_scale,
             sampling_steps=sampling_steps,
             ema_eval=ema_eval,
+            traj_skips=traj_skips,
+            save_skips=save_skips,
             potentials=potentials,
             device=device,
         )
@@ -103,29 +108,35 @@ class EBTrainer(Trainer):
         self.num_1d_plot_samples = num_1d_plot_samples
         self.animation_duration = animation_duration
 
-        # Auto-compute traj_skips
         if traj_skips is None:
             self.traj_skips = 1 if epochs <= 10 else max(1, math.ceil(epochs / 10))
         else:
             self.traj_skips = traj_skips
 
-        # Trajectory storage
         self.epoch_trajectories: list[np.ndarray] = []
         self.trajectory_t_eval: np.ndarray | None = None
 
-        # Plotting directories
         self.xtk_plot_dir = self.save_dir / "xtk_plots"
         self.xtk_plot_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize metric tracking
         self._init_marginal_metrics()
 
-        # Log configuration
         if reshuffle_each_epoch:
             self.logger.info("Reshuffling cell pairings each epoch")
 
+        # Log CITE-seq-specific info
+        if train_times:
+            self.logger.info(
+                f"  Train times: {train_times} "
+                f"(days {[CITE_IDX_TO_DAY[t] for t in train_times]})"
+            )
+        if holdout_times:
+            self.logger.info(
+                f"  Holdout times: {holdout_times} "
+                f"(days {[CITE_IDX_TO_DAY[t] for t in holdout_times]})"
+            )
+
     def _get_underlying_dataset(self):
-        """Get the underlying dataset, handling random_split wrapper."""
         dataset = self.train_loader.dataset
         if hasattr(dataset, "dataset"):
             dataset = dataset.dataset
@@ -135,44 +146,46 @@ class EBTrainer(Trainer):
         """Initialize metric tracking for all marginal times."""
         all_times = sorted(self.marginals.keys()) if self.marginals else []
         time_keys = [f"t{t}" for t in all_times]
-        if 2 in (self.marginals or {}) and 4 in (self.marginals or {}):
-            time_keys.append("t2_t4")
         for m in self.eval_metrics:
             for t in time_keys:
                 self.losses[f"{m}_{t}"] = []
         self.losses["metric_epochs"] = []
 
     def on_train_start(self):
-        """Save initial state before training."""
-        self._save_epoch_trajectories(epoch=0)
+        self._generate_trajectories(epoch=0, save_to_disk=True)
         self._plot_xtk_comparison(epoch=0)
         self._compute_metrics(epoch=0, do_mmd=True)
 
     def on_epoch_start(self, epoch: int, batch: Tensor | None = None):
-        """Reshuffle cell pairings."""
         if self.reshuffle_each_epoch:
             dataset = self._get_underlying_dataset()
             if hasattr(dataset, "reshuffle"):
                 dataset.reshuffle()
 
     def on_epoch_end(self, epoch: int, batch: Tensor | None = None):
-        """Save trajectories and compute metrics."""
-        if ((epoch + 1) % self.traj_skips == 0) or (epoch == self.epochs - 1):
-            self._save_epoch_trajectories(epoch=epoch + 1)
-            self._plot_xtk_comparison(epoch=epoch + 1)
+        ep = epoch + 1
+        is_eval = ((ep % self.traj_skips) == 0) or (epoch == self.epochs - 1)
+        is_save = ((ep % self.save_skips) == 0) or (epoch == self.epochs - 1)
+        if is_eval:
+            self._generate_trajectories(epoch=ep, save_to_disk=is_save)
+            if is_save:
+                self._plot_xtk_comparison(epoch=ep)
             if epoch != self.epochs - 1:
-                self._compute_metrics(epoch=epoch + 1, do_mmd=True)
+                self._compute_metrics(epoch=ep, do_mmd=True)
 
     @torch.no_grad()
-    def _save_epoch_trajectories(self, epoch: int):
-        """Sample and save trajectories."""
+    def _generate_trajectories(self, epoch: int, save_to_disk: bool = True):
         if self.marginals is None or self.train_times is None:
             return
 
         self.model.eval()
         source_time = min(self.train_times)
         source = self.marginals[source_time]
-        num_samples = min(self.eval_num_samples, len(source))
+        num_samples = (
+            len(source)
+            if self.eval_num_samples is None
+            else min(self.eval_num_samples, len(source))
+        )
         x0 = source[:num_samples].to(self.device)
 
         trajectories, t_eval = self.model.sample(x0, n_steps=self.eval_n_steps, ema=self.ema_eval)
@@ -181,18 +194,17 @@ class EBTrainer(Trainer):
         if self.trajectory_t_eval is None:
             self.trajectory_t_eval = t_eval.cpu().numpy()
 
-        # Save to disk
-        traj_dir = self.save_dir / "trajectories"
-        traj_dir.mkdir(parents=True, exist_ok=True)
-        np.savez(
-            traj_dir / f"trajectories_epoch{epoch:04d}.npz",
-            trajectories=trajectories.cpu().numpy(),
-            t_eval=t_eval.cpu().numpy(),
-        )
+        if save_to_disk:
+            traj_dir = self.save_dir / "trajectories"
+            traj_dir.mkdir(parents=True, exist_ok=True)
+            np.savez(
+                traj_dir / f"trajectories_epoch{epoch:04d}.npz",
+                trajectories=trajectories.cpu().numpy(),
+                t_eval=t_eval.cpu().numpy(),
+            )
 
     @torch.no_grad()
     def _plot_xtk_comparison(self, epoch: int):
-        """Plot X_tk comparison."""
         if self.potentials is None or len(self.potentials) == 0:
             return
 
@@ -222,31 +234,29 @@ class EBTrainer(Trainer):
         )
 
     def _get_random_samples(self, n_samples: int) -> torch.Tensor:
-        """Get random samples from each marginal."""
         samples = []
         for t in sorted(self.train_times):
             marginal = self.marginals[t]
             indices = np.random.choice(len(marginal), size=n_samples, replace=False)
             samples.append(marginal[indices].cpu())
-        return torch.stack(samples, dim=1)  # (n_samples, n_times, dim)
+        return torch.stack(samples, dim=1)
 
     @torch.no_grad()
     def _compute_metrics(self, epoch: int, do_mmd: bool = False):
-        """Compute metrics at all time points.
+        """Compute metrics at all time points in original PCA space.
 
-        W1 is computed in normalized (standardized) space to match the protocol of Neklyudov et al. (2024), WLF.
-        All other metrics use inverse-transformed
-        (original PCA) space. Only metrics listed in ``self.eval_metrics`` are computed.
+        All metrics (W1, SWD, MMD, FGD, W2) are computed after inverse-transforming
+        both generated and ground truth samples back to original PCA space, matching
+        the evaluation protocol of prior work.
         """
         if self.marginals is None or not self.epoch_trajectories:
             return
 
         metrics = self.eval_metrics
-        raw_trajectories = self.epoch_trajectories[-1]  # normalized space
+        raw_trajectories = self.epoch_trajectories[-1]
         t_eval = self.trajectory_t_eval
 
-        need_inv = metrics & {"swd", "mmd", "fgd"}
-        if need_inv and self.scaler is not None:
+        if self.scaler is not None:
             shape = raw_trajectories.shape
             inv_trajectories = self.scaler.inverse_transform(
                 raw_trajectories.reshape(-1, shape[-1])
@@ -260,74 +270,40 @@ class EBTrainer(Trainer):
         def normalize_time(t):
             return (t - time_min) / (time_max - time_min)
 
-        generated_samples = {}
-        generated_samples_norm = {}
-
         for t in all_times:
             t_norm = normalize_time(t)
             target_idx = np.argmin(np.abs(t_eval - t_norm))
 
-            gt_norm = self.marginals[t][: self.eval_num_samples]
-            gen_norm = torch.from_numpy(raw_trajectories[target_idx])
+            num_gt = (
+                len(self.marginals[t])
+                if self.eval_num_samples is None
+                else min(self.eval_num_samples, len(self.marginals[t]))
+            )
+            gt_norm = self.marginals[t][:num_gt]
+            gen_inv = torch.from_numpy(inv_trajectories[target_idx])
+
+            if self.scaler is not None:
+                gt_inv = torch.from_numpy(self.scaler.inverse_transform(gt_norm.cpu().numpy()))
+            else:
+                gt_inv = gt_norm
 
             if "w1" in metrics:
-                self.losses[f"w1_t{t}"].append(compute_w1_distance(gen_norm, gt_norm))
+                self.losses[f"w1_t{t}"].append(compute_w1_distance(gen_inv, gt_inv))
+            if "swd" in metrics:
+                self.losses[f"swd_t{t}"].append(compute_swd(gen_inv, gt_inv))
+            if "mmd" in metrics and do_mmd:
+                self.losses[f"mmd_t{t}"].append(compute_mmd(gen_inv, gt_inv))
+            if "fgd" in metrics:
+                self.losses[f"fgd_t{t}"].append(compute_fgd(gen_inv, gt_inv))
             if "w2" in metrics:
-                self.losses[f"w2_t{t}"].append(compute_w2_distance(gen_norm, gt_norm))
-
-            if need_inv:
-                if self.scaler is not None:
-                    gt_inv = torch.from_numpy(self.scaler.inverse_transform(gt_norm.cpu().numpy()))
-                else:
-                    gt_inv = gt_norm
-                gen_inv = torch.from_numpy(inv_trajectories[target_idx])
-
-                if "swd" in metrics:
-                    self.losses[f"swd_t{t}"].append(compute_swd(gen_inv, gt_inv))
-                if "mmd" in metrics and do_mmd:
-                    self.losses[f"mmd_t{t}"].append(compute_mmd(gen_inv, gt_inv))
-                if "fgd" in metrics:
-                    self.losses[f"fgd_t{t}"].append(compute_fgd(gen_inv, gt_inv))
-
-                generated_samples[t] = gen_inv
-            generated_samples_norm[t] = gen_norm
-
-        # Combined t2+t4 metrics
-        if 2 in generated_samples_norm and 4 in generated_samples_norm:
-            if "w1" in metrics:
-                gen_norm_combined = torch.cat(
-                    [generated_samples_norm[2], generated_samples_norm[4]]
+                w2_dim = min(gen_inv.shape[-1], 10)
+                self.losses[f"w2_t{t}"].append(
+                    compute_w2_distance(gen_inv[:, :w2_dim], gt_inv[:, :w2_dim])
                 )
-                gt_norm_combined = torch.cat(
-                    [
-                        self.marginals[2][: self.eval_num_samples],
-                        self.marginals[4][: self.eval_num_samples],
-                    ]
-                )
-                self.losses["w1_t2_t4"].append(
-                    compute_w1_distance(gen_norm_combined, gt_norm_combined)
-                )
-
-            if need_inv and 2 in generated_samples and 4 in generated_samples:
-                gen_combined = torch.cat([generated_samples[2], generated_samples[4]])
-                gt_2 = self.marginals[2][: self.eval_num_samples]
-                gt_4 = self.marginals[4][: self.eval_num_samples]
-                if self.scaler is not None:
-                    gt_2 = torch.from_numpy(self.scaler.inverse_transform(gt_2.cpu().numpy()))
-                    gt_4 = torch.from_numpy(self.scaler.inverse_transform(gt_4.cpu().numpy()))
-                gt_combined = torch.cat([gt_2, gt_4])
-
-                if "swd" in metrics:
-                    self.losses["swd_t2_t4"].append(compute_swd(gen_combined, gt_combined))
-                if "mmd" in metrics and do_mmd:
-                    self.losses["mmd_t2_t4"].append(compute_mmd(gen_combined, gt_combined))
-                if "fgd" in metrics:
-                    self.losses["fgd_t2_t4"].append(compute_fgd(gen_combined, gt_combined))
 
         self.losses["metric_epochs"].append(epoch)
 
-        # Log summary — show all computed metrics per time
-        metric_order = ["w2", "swd", "mmd", "fgd", "w1"]
+        metric_order = ["swd", "mmd", "fgd", "w1"]
         log_parts = [f"Epoch {epoch} metrics:"]
         for t in all_times:
             vals = []
@@ -336,29 +312,24 @@ class EBTrainer(Trainer):
                 if self.losses.get(key):
                     vals.append(f"{m.upper()}={self.losses[key][-1]:.4f}")
             if vals:
-                log_parts.append(f"t{t}({', '.join(vals)})")
+                day_str = CITE_IDX_TO_DAY.get(t, t)
+                log_parts.append(f"t{t}(day{day_str}: {', '.join(vals)})")
         self.logger.info(" ".join(log_parts))
 
     def post_training(self, show: bool = False, create_animation: bool = False) -> Path:
-        """Run post-training tasks."""
         self._compute_metrics(epoch=self.epochs, do_mmd=True)
         save_path = super().post_training(show=show)
 
-        # Plot trajectories
         if self.marginals is not None and self.epoch_trajectories:
             self._plot_final_trajectories()
 
-        # Create animation
         if create_animation and self.epoch_trajectories:
             self.create_animations()
 
-        # Append to master CSV
         self.append_to_master_csv()
-
         return save_path
 
     def _plot_final_trajectories(self):
-        """Plot final trajectory visualization."""
         if not self.epoch_trajectories or self.trajectory_t_eval is None:
             return
 
@@ -377,7 +348,6 @@ class EBTrainer(Trainer):
             show=False,
         )
 
-        # Also plot PC3 vs PC4 if dimension is high enough
         dim = trajectories.shape[-1]
         if dim >= 4:
             plotting.plot_pca_trajectories(
@@ -392,9 +362,8 @@ class EBTrainer(Trainer):
             )
 
     def create_animations(self, num_trajectories: int = 100, pcs: tuple[int, int] = (0, 1)):
-        """Create animated GIF showing trajectory evolution across training."""
         if not self.epoch_trajectories or self.marginals is None or self.trajectory_t_eval is None:
-            self.logger.warning("Skipping animation: missing trajectories, marginals, or t_eval")
+            self.logger.warning("Skipping animation: missing data")
             return
 
         all_times = sorted(self.marginals.keys())
@@ -412,7 +381,6 @@ class EBTrainer(Trainer):
         )
 
     def plot_losses(self, log: bool = False, show: bool = False):
-        """Override to use single-cell specific loss plotting."""
         plotting.plot_losses(
             self.losses,
             name="losses" + ("_log" if log else ""),
@@ -422,33 +390,26 @@ class EBTrainer(Trainer):
         )
 
     def _find_best_epoch_idx(self) -> int | None:
-        """Index of epoch with lowest avg MMD = (mmd_t1 + mmd_t3 + 2*mmd_t2_t4) / 4.
+        """Find the best epoch based on holdout time FGD/W1."""
+        holdout_keys = [f"fgd_t{t}" for t in self.holdout_times]
+        valid_keys = [k for k in holdout_keys if k in self.losses and self.losses[k]]
 
-        Falls back to (fgd_t1 + fgd_t3)/2 if MMD is unavailable.
-        """
-        if all(self.losses.get(k) for k in ("mmd_t1", "mmd_t3", "mmd_t2_t4")):
-            mmd_t1 = self.losses["mmd_t1"]
-            mmd_t3 = self.losses["mmd_t3"]
-            mmd_rest = self.losses["mmd_t2_t4"]
-            n = min(len(mmd_t1), len(mmd_t3), len(mmd_rest))
-            avg = [(mmd_t1[i] + mmd_t3[i] + 2 * mmd_rest[i]) / 4 for i in range(n)]
-            return int(np.argmin(avg))
+        if not valid_keys:
+            # Fall back to W1 at holdout times
+            holdout_keys = [f"w1_t{t}" for t in self.holdout_times]
+            valid_keys = [k for k in holdout_keys if k in self.losses and self.losses[k]]
 
-        fgd_t1 = self.losses.get("fgd_t1", [])
-        fgd_t3 = self.losses.get("fgd_t3", [])
-        if not fgd_t1 or not fgd_t3:
+        if not valid_keys:
             return None
-        n = min(len(fgd_t1), len(fgd_t3))
-        avg_fgd = [(fgd_t1[i] + fgd_t3[i]) / 2 for i in range(n)]
-        return int(np.argmin(avg_fgd))
+
+        n = min(len(self.losses[k]) for k in valid_keys)
+        avg_metric = [
+            sum(self.losses[k][i] for k in valid_keys) / len(valid_keys) for i in range(n)
+        ]
+        return int(np.argmin(avg_metric))
 
     def append_to_master_csv(self, master_csv_path: Path | None = None):
-        """Append best-epoch metrics to master results CSV.
-
-        Selects the epoch with the lowest avg MMD = (mmd_t1+mmd_t3+2*mmd_t2_t4)/4
-        (falls back to avg of fgd_t1, fgd_t3 if MMD unavailable) and saves all
-        metrics from that epoch.
-        """
+        """Append best-epoch metrics to master results CSV."""
         if master_csv_path is None:
             master_csv_path = self.save_dir.parent.parent / "master_results.csv"
 
@@ -456,7 +417,7 @@ class EBTrainer(Trainer):
         best_idx = self._find_best_epoch_idx()
 
         if best_idx is None:
-            self.logger.warning("No metric history found, skipping master CSV")
+            self.logger.warning("No holdout metrics found, skipping master CSV")
             return
 
         metric_epochs = self.losses.get("metric_epochs", [])
@@ -464,20 +425,13 @@ class EBTrainer(Trainer):
 
         row = {"model_dir": model_dir, "best_epoch": best_epoch}
 
-        # Add all metric values from the best epoch
-        metric_prefixes = ["w1", "swd", "mmd", "fgd", "w2"]
-        time_suffixes = ["t1", "t2", "t3", "t4", "t2_t4"]
-        for metric in metric_prefixes:
-            for time in time_suffixes:
-                key = f"{metric}_{time}"
+        all_times = sorted(self.marginals.keys()) if self.marginals else []
+        for t in all_times:
+            for metric in ["w1", "swd", "fgd", "w2"]:
+                key = f"{metric}_t{t}"
                 if key in self.losses and best_idx < len(self.losses[key]):
                     row[key] = self.losses[key][best_idx]
 
-        # Average MMD across all 4 marginals (t1, t3 and rest counts as 2)
-        if all(f"mmd_{t}" in row for t in ("t1", "t3", "t2_t4")):
-            row["avg_mmd"] = (row["mmd_t1"] + row["mmd_t3"] + 2 * row["mmd_t2_t4"]) / 4
-
-        # Add training metrics from the best epoch (use closest available)
         if self.losses.get("train_loss"):
             row["train_loss"] = self.losses["train_loss"][
                 min(best_epoch, len(self.losses["train_loss"]) - 1)
@@ -487,13 +441,10 @@ class EBTrainer(Trainer):
                 min(best_epoch, len(self.losses["val_loss"]) - 1)
             ]
 
-        if "avg_mmd" in row:
-            self.logger.info(f"Best epoch: {best_epoch} (avg MMD = {row['avg_mmd']:.4f})")
-        else:
-            self.logger.info(
-                f"Best epoch: {best_epoch} "
-                f"(avg fgd_t1+t3 = {(row.get('fgd_t1', 0) + row.get('fgd_t3', 0)) / 2:.4f})"
-            )
+        holdout_fgd_keys = [f"fgd_t{t}" for t in self.holdout_times]
+        holdout_vals = [row.get(k, 0) for k in holdout_fgd_keys if k in row]
+        avg_holdout = sum(holdout_vals) / max(len(holdout_vals), 1)
+        self.logger.info(f"Best epoch: {best_epoch} (avg holdout FGD = {avg_holdout:.4f})")
 
         df_row = pd.DataFrame([row])
 

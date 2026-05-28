@@ -16,17 +16,7 @@ A PyTorch library for training flow matching models with intermediate marginal c
 - [Tutorials](#tutorials)
 - [Customization](#customization)
 - [Citation](#citation)
-- [License](#license)
 - [Reproducing Experiments](#reproducing-experiments)
-
-
-## Repo TODOs
-
-- [ ] Docs
-- [ ] Interactive page for tuning exact Gaussian potentials (need to solve OTP-FM approximation for this)
-- [ ] Fix plots
-- [ ] Animation?
-- [ ] Website?
 
 ## Overview
 

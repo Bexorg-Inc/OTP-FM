@@ -13,7 +13,7 @@ from matplotlib.colors import ListedColormap
 from torch import Tensor
 
 from experiments import plotting
-from experiments.beijingair.data import METRIC_TIMES
+from experiments.beijingair.data import DEFAULT_HOLDOUT_TIMES, METRIC_TIMES
 from experiments.plotting import COLOURS, loss_args, save_plot
 
 logger = logging.getLogger(__name__)
@@ -179,18 +179,34 @@ def plot_scatter(
     return fig
 
 
+def _setup_marginal_xaxis(ax, plot_times, holdout_times, xlabel: str = ""):
+    """Configure x-axis with marginal labels and held-out annotations."""
+    holdout_set = set(holdout_times)
+    tick_labels = [
+        f"$t_{{{t}}}$ (held-out)" if t in holdout_set else f"$t_{{{t}}}$" for t in plot_times
+    ]
+    ax.set_xticks(plot_times)
+    ax.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=9)
+    if xlabel:
+        ax.set_xlabel(xlabel)
+
+
 def plot_trajectories(
     trajectories: Tensor | np.ndarray,
     t_eval: np.ndarray | None = None,
     ground_truth_marginals: dict[int, Tensor | np.ndarray] | None = None,
     plot_times: list[int] | None = None,
-    num_trajectories: int = 100,
-    num_scatter: int = 100,
+    holdout_times: list[int] | None = None,
+    num_trajectories: int | None = None,
+    num_scatter: int | None = None,
     figsize: tuple[int, int] = (10, 6),
-    alpha_traj: float = 0.3,
+    alpha_traj: float = 0.15,
     alpha_scatter: float = 0.5,
+    linewidth_traj: float = 0.5,
     plot_generated_scatter: bool = False,
+    legend: bool = False,
     title: str = None,
+    ax: plt.Axes | None = None,
     save_path: Path | None = None,
     show: bool = True,
 ) -> plt.Figure:
@@ -202,20 +218,27 @@ def plot_trajectories(
         t_eval: Time values for each step in trajectories (n_steps,), normalized [0, 1]
         ground_truth_marginals: Dict mapping time index -> ground truth PM2.5 values
         plot_times: Which times to show (default: all from marginals)
-        num_trajectories: Maximum trajectories to plot
-        num_scatter: Maximum scatter points per marginal
+        holdout_times: Time indices to label as held-out on x-axis
+        num_trajectories: Maximum trajectories to plot (default: all)
+        num_scatter: Maximum scatter points per marginal (default: all)
         figsize: Figure size
         alpha_traj: Trajectory line alpha
         alpha_scatter: Scatter point alpha
+        linewidth_traj: Trajectory line width
         plot_generated_scatter: If True, also plot generated trajectory points at times
             closest to the ground truth time points
+        legend: Whether to show legend
         title: Plot title
+        ax: Axes to plot on (creates new figure if None)
         save_path: Path to save figure
         show: Whether to display
 
     Returns:
         matplotlib Figure object
     """
+    if holdout_times is None:
+        holdout_times = DEFAULT_HOLDOUT_TIMES
+
     # Convert to numpy
     if isinstance(trajectories, Tensor):
         trajectories = trajectories.cpu().numpy()
@@ -224,10 +247,14 @@ def plot_trajectories(
 
     # trajectories shape: (n_steps, n_samples, 1)
     n_steps, n_samples, dim = trajectories.shape
-    num_trajectories = min(num_trajectories, n_samples)
-    trajectories_plot = trajectories[:, :num_trajectories, 0]  # (n_steps, num_traj)
+    num_traj = min(num_trajectories, n_samples) if num_trajectories is not None else n_samples
+    trajectories_plot = trajectories[:, :num_traj, 0]  # (n_steps, num_traj)
 
-    fig, ax = plt.subplots(figsize=figsize)
+    own_fig = ax is None
+    if own_fig:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.get_figure()
 
     # Get times for coloring
     if plot_times is None and ground_truth_marginals is not None:
@@ -246,9 +273,10 @@ def plot_trajectories(
                 data = ground_truth_marginals[time_idx]
                 if isinstance(data, Tensor):
                     data = data.cpu().numpy()
-                data = data.flatten()[:num_scatter]
+                data = data.flatten()
+                if num_scatter is not None:
+                    data = data[:num_scatter]
 
-                # Normalize time to [0, 1]
                 t_norm = (time_idx - time_min) / (time_max - time_min) if time_max > time_min else 0
                 tvec = np.full(len(data), t_norm)
 
@@ -259,21 +287,16 @@ def plot_trajectories(
                     c=color,
                     s=scatter_args["s"],
                     alpha=alpha_scatter,
-                    label=f"t={time_idx}",
                     edgecolors="none",
                 )
 
     if plot_generated_scatter and t_eval is not None:
-        time_min = min(plot_times)
-        time_max = max(plot_times)
         for time_idx in plot_times:
-            # Normalize time to [0, 1] range
             t_norm = (time_idx - time_min) / (time_max - time_min)
-            # Find closest index in t_eval
             closest_idx = np.argmin(np.abs(t_eval - t_norm))
 
-            # Get generated points at this time (1D PM2.5 values)
-            gen_points = trajectories[closest_idx, :num_scatter, 0]  # (num_scatter,)
+            n_gen = num_scatter if num_scatter is not None else n_samples
+            gen_points = trajectories[closest_idx, :n_gen, 0]
             tvec = np.full(len(gen_points), t_norm)
 
             ax.scatter(
@@ -290,26 +313,91 @@ def plot_trajectories(
     if t_eval is None:
         t_eval = np.linspace(0, 1, n_steps)
 
-    for i in range(num_trajectories):
-        traj = trajectories_plot[:, i]
-        ax.plot(t_eval * 12, traj, alpha=alpha_traj, linewidth=0.8, color="gray")
+    for i in range(num_traj):
+        ax.plot(
+            t_eval * 12,
+            trajectories_plot[:, i],
+            alpha=alpha_traj,
+            linewidth=linewidth_traj,
+            color="gray",
+        )
 
-    ax.set_xlabel("Time (normalized)")
+    _setup_marginal_xaxis(ax, plot_times, holdout_times)
     ax.set_ylabel("PM2.5")
+
     if title:
         ax.set_title(title)
-    ax.legend(loc="best", fontsize=8, ncol=2)
+    if legend:
+        ax.legend(loc="best", fontsize=8, ncol=2)
 
-    plt.tight_layout()
+    if own_fig:
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+            logger.info(f"Saved plot to {save_path}")
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
-        print(f"Saved plot to {save_path}")
+    return fig
 
-    if show:
-        plt.show()
+
+def plot_marginals_violin(
+    marginals: dict[int, Tensor | np.ndarray],
+    plot_times: list[int] | None = None,
+    holdout_times: list[int] | None = None,
+    figsize: tuple[int, int] = (10, 6),
+    title: str = "Ground Truth Marginals",
+    ax: plt.Axes | None = None,
+    save_path: Path | None = None,
+    show: bool = True,
+) -> plt.Figure:
+    """Plot ground truth marginals as violin plots, one per time index."""
+    if holdout_times is None:
+        holdout_times = DEFAULT_HOLDOUT_TIMES
+    if plot_times is None:
+        plot_times = sorted(marginals.keys())
+
+    datasets = []
+    for t in plot_times:
+        data = marginals[t]
+        if isinstance(data, Tensor):
+            data = data.cpu().numpy()
+        datasets.append(data.flatten())
+
+    own_fig = ax is None
+    if own_fig:
+        fig, ax = plt.subplots(figsize=figsize)
     else:
-        plt.close()
+        fig = ax.get_figure()
+
+    parts = ax.violinplot(datasets, positions=plot_times, showmedians=False, showextrema=False)
+    for i, pc in enumerate(parts["bodies"]):
+        pc.set_facecolor(TIME_COLORS[plot_times[i] % len(TIME_COLORS)])
+        pc.set_alpha(0.7)
+
+    for i, d in enumerate(datasets):
+        q25, median, q75 = np.percentile(d, [25, 50, 75])
+        pos = plot_times[i]
+        ax.vlines(pos, q25, q75, color="black", linewidth=1.5, zorder=3)
+        ax.scatter(pos, median, color="white", s=12, zorder=4, edgecolors="black", linewidths=0.7)
+
+    _setup_marginal_xaxis(ax, plot_times, holdout_times)
+    ax.set_ylabel("PM2.5")
+
+    if title:
+        ax.set_title(title)
+
+    if own_fig:
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+            logger.info(f"Saved plot to {save_path}")
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
     return fig
 

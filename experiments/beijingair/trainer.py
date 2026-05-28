@@ -35,6 +35,8 @@ class BeijingTrainer(Trainer):
         epochs: int = 10,
         optimizer: str = "adam",
         grad_clip: float = 0.0,
+        weight_decay: float = 0.0,
+        lr_schedule: str | None = None,
         do_otp: bool = True,
         # Progressive loss weighting
         otp_alpha_type: str = "sigmoid",
@@ -66,6 +68,8 @@ class BeijingTrainer(Trainer):
             epochs=epochs,
             optimizer=optimizer,
             grad_clip=grad_clip,
+            weight_decay=weight_decay,
+            lr_schedule=lr_schedule,
             do_otp=do_otp,
             otp_alpha_type=otp_alpha_type,
             otp_alpha_slope=otp_alpha_slope,

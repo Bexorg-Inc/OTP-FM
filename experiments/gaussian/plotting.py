@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Labels for distance functions
 distD_labels = {
-    "W2": r"$\mathcal{D} = \mathcal{W}_2$",
+    "W2": r"$\mathcal{D} = \mathcal{W}_2^2$",
     "W2inf": r"$\mathcal{D} = \mathcal{W}_2^\infty$",
     "KL": r"$\mathcal{D} = \mathrm{KL}$",
     "MMD_RBF": r"$\mathcal{D} = \mathrm{MMD}^2_\mathrm{RBF}$",
@@ -38,6 +38,7 @@ rD_labels = {
     "-D^2": r"$r(\mathcal{D}) = -\mathcal{D}^2$",
     "1/D": r"$r(\mathcal{D}) = 1/\mathcal{D}$",
 }
+
 
 def _compute_lambda(t: np.ndarray, t_k: float, lambda_width: float, lambda_type: str) -> np.ndarray:
     """Compute lambda(t) for a single intermediate potential."""
