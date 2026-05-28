@@ -39,6 +39,7 @@ rD_labels = {
     "1/D": r"$r(\mathcal{D}) = 1/\mathcal{D}$",
 }
 
+
 def _compute_lambda(t: np.ndarray, t_k: float, lambda_width: float, lambda_type: str) -> np.ndarray:
     """Compute lambda(t) for a single intermediate potential."""
     if lambda_type == "gaussian":
