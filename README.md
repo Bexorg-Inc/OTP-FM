@@ -1,22 +1,36 @@
+<!-- <p align="center">
+    <img src="media/method_overview.png" alt="Method Overview"/>
+</p> -->
+
+<p align="center">
+<b>OTP-FM: Multimarginal flow matching (FM) with optimal transport potentials (OTP) (ICML 2026)</b>
+</p>
+
+---
+
+<p align="center">
+  <a href="#overview">Paper</a> •
+  <a href="#overview">Overview</a> •
+  <a href="#why-otp-fm">Why OTP-FM?</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#quick-start">Quick start</a> •
+  <a href="#tutorials">Tutorials</a> •
+  <a href="#documentation">Documentation</a> •
+  <a href="#citation">Citation</a>
+</p>
+
+---
+
 # OTP-FM: Multimarginal flow matching (FM) with optimal transport potentials (OTP)
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/Bexorg-Inc/otpfm/actions/workflows/ci.yml/badge.svg)](https://github.com/Bexorg-Inc/otpfm/actions/workflows/ci.yml)
-[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Bexorg-Inc/otpfm/badges/coverage-badge.json)](https://github.com/Bexorg-Inc/otpfm/actions/workflows/ci.yml)
+[![CI](https://github.com/Bexorg-Inc/OTP-FM/actions/workflows/ci.yml/badge.svg)](https://github.com/Bexorg-Inc/OTP-FM/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Bexorg-Inc/OTP-FM/badges/coverage-badge.json)](https://github.com/Bexorg-Inc/OTP-FM/actions/workflows/ci.yml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials".
-
-- [Overview](#overview)
-- [Why OTP-FM?](#why-otp-fm)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Tutorials](#tutorials)
-- [Customization](#customization)
-- [Citation](#citation)
-- [Reproducing Experiments](#reproducing-experiments)
+A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials". Includes code for reproducing [Kansal et. al., ICML 2026]().
 
 ## Overview
 
@@ -54,7 +68,7 @@ curl -sSf https://pixi.sh/install.sh | bash
 Then set up the environment:
 
 ```bash
-git clone https://github.com/Bexorg-Inc/otpfm.git
+git clone https://github.com/Bexorg-Inc/OTP-FM.git
 cd otpfm
 pixi install
 pixi shell
@@ -194,7 +208,7 @@ model = OTPFM(
 If you use this code in your research, please cite:
 
 ```
-TODO
+Coming soon.
 ```
 
 ## Reproducing Experiments
