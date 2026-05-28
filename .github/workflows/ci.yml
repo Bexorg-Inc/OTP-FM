@@ -51,7 +51,7 @@ jobs:
           echo "Coverage: $COVERAGE%"
 
       - name: Update coverage badge
-        if: matrix.python-version == '3.11' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: matrix.python-version == '3.12' && github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           # Determine badge color based on coverage
           COLOR=$(python -c "c=$COVERAGE; print('brightgreen' if c>=90 else 'green' if c>=80 else 'yellow' if c>=70 else 'orange' if c>=60 else 'red')")
