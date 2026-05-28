@@ -1,5 +1,6 @@
 """
-Per-sample localized OTP-FM solver (Sec. 5) for the $W_2^2$ potential.
+Per-sample localized OTP-FM solver (Sec. 5) for the $W_2^2$ potential,
+primarily for visualizing the conditional trajectories (e.g. for Fig. 1 of the paper).
 
 For each conditional sample (x_0, x_1, x_{mu_k} for k=1..K), the localized
 trajectory is
