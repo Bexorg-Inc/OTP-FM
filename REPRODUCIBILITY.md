@@ -1,6 +1,6 @@
 # Reproducing Paper Experiments
 
-This guide explains how to reproduce all experiments from the ICML 2025 paper "Optimal Transport Potentials for Multi-Marginal Flow Matching".
+This guide explains how to reproduce all experiments from [Kansal et. al., *Multimarginal flow matching with optimal transport potentials*, ICML 2026]().
 
 ## Setup
 
@@ -17,7 +17,7 @@ pixi shell
 
 ## Datasets
 
-All datasets are automatically downloaded during training. Storage locations:
+All datasets are automatically downloaded during training. Provenance:
 
 - **Single-cell (Embryoid Body)**: Downloads from the [TrajectoryNet repository](https://github.com/KrishnaswamyLab/TrajectoryNet/raw/master/data/eb_velocity_v5.npz)
 - **CITE-seq (50D PCA)**: Downloads `cite_pca50.csv` from the [VGFM repository](https://github.com/DongyiWang-66/VGFM/blob/main/data/cite_pca50.csv)
@@ -27,11 +27,13 @@ All datasets are automatically downloaded during training. Storage locations:
 
 ## Reproducing paper results
 
+Base command for default configurations used in the paper. Specific configs for different experimental protocols are below.
+
 ```bash
-python experiments/train.py --dataset {singlecell, beijingair, gulfofmexico} --potential {W2Inf, W2, MMD, KL}
+python experiments/train.py --dataset {singlecell, citeseq, beijingair, gulfofmexico} --potential {W2Inf, W2, MMD, KL}
 ```
 
-This will automatically load the configurations used in the paper. For further tunable options, run:
+For further tunable options, run:
 
 ```bash
 python experiments/train.py -h
@@ -71,7 +73,7 @@ python experiments/train.py --dataset singlecell --config configs/singlecell/eb_
 ### EB 5D Leave-Two-Out
 
 This experiment uses **5-dim PCA**, holds out t1 and t3, trains on t0, t2, t4, and evaluates **W2 distance** (in normalized space) at the held-out times,
-following the setup of [Persiianov et. al. (2025)](https://arxiv.org/abs/2506.01502). Not included in ICML 2026 paper because of time constraints.
+following the setup of [Persiianov et. al. (2025)](https://arxiv.org/abs/2506.01502). Not included in the paper because of time constraints.
 
 **Config:** `configs/singlecell/5DL2O/defaults.json` (layers on top of `defaults.json` → `W2.json`). Includes `consistency_loss=imf` since validation (Avg W2 over (t1, t3) = 0.8268 +/- 0.0030) showed IMF beats the meanflow default (0.8331 single-seed) on this experiment.
 
