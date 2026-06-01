@@ -213,4 +213,5 @@ Coming soon.
 
 ## Reproducing Experiments
 
-For reproducing the experiments from the ICML paper, see [REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+For reproducing OTP-FM experiments from the ICML paper, see [REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+For details on our benchmarking of previous methods, see https://github.com/rkansal47/OTP-FM-benchmarking.
