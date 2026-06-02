@@ -3013,25 +3013,25 @@ packages:
   timestamp: 1763125014948
 - pypi: ./
   name: otpfm
-  version: 0.1.0
-  sha256: 51661d8922ced1c41b39955624d1120ce256b201a4a8ad58d2c07d05525469e5
+  version: 0.1.1.dev55
+  sha256: 392a56972bdae7b4e8e3436395784d999b0db202df8e9f60c6cb1ff96d073ca2
   requires_dist:
-  - torch>=2.0
   - numpy>=1.20
-  - pot>=0.9 ; extra == 'w2'
-  - otpfm[w2] ; extra == 'all'
-  - otpfm[all] ; extra == 'experiments'
-  - scikit-learn>=1.0 ; extra == 'experiments'
+  - torch>=2.0
+  - pot>=0.9 ; extra == 'all'
+  - black>=24.0 ; extra == 'dev'
+  - pre-commit>=3.0 ; extra == 'dev'
+  - pytest-cov>=4.0 ; extra == 'dev'
+  - pytest>=9.0 ; extra == 'dev'
+  - ruff>=0.4 ; extra == 'dev'
   - matplotlib>=3.5 ; extra == 'experiments'
   - pandas>=2.0 ; extra == 'experiments'
+  - pillow>=10.0 ; extra == 'experiments'
+  - pot>=0.9 ; extra == 'experiments'
+  - scikit-learn>=1.0 ; extra == 'experiments'
   - scipy>=1.10 ; extra == 'experiments'
   - tqdm>=4.0 ; extra == 'experiments'
-  - pillow>=10.0 ; extra == 'experiments'
-  - pytest>=9.0 ; extra == 'dev'
-  - pytest-cov>=4.0 ; extra == 'dev'
-  - black>=24.0 ; extra == 'dev'
-  - ruff>=0.4 ; extra == 'dev'
-  - pre-commit>=3.0 ; extra == 'dev'
+  - pot>=0.9 ; extra == 'w2'
   requires_python: '>=3.10'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/packaging-25.0-pyh29332c3_1.conda

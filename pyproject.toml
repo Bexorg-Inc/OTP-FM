@@ -1,6 +1,6 @@
 [project]
 name = "otpfm"
-version = "0.1.0"
+dynamic = ["version"]
 description = "OTP-FM: Multimarginal flow matching with optimal transport potentials"
 authors = [{name = "Raghav Kansal", email = "raghav.kansal@bexorg.com"}]
 readme = "README.md"
@@ -48,8 +48,17 @@ Documentation = "https://github.com/raghavkansal/otpfm"
 Repository = "https://github.com/raghavkansal/otpfm"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/otpfm/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/otpfm", "experiments"]

@@ -114,10 +114,9 @@ iterations_per_epoch = 50
 otp_alpha_schedule = Curriculum(total_iterations=n_epochs * iterations_per_epoch)  # Sigmoid schedule by default
 
 iterations = 0
+model.train()
 for epoch in range(n_epochs):
-    for batch_idx in range(steps_per_epoch):
-        model.train()
-
+    for batch_idx in range(iterations_per_epoch):
         otp_alpha = otp_alpha_schedule(iterations)
 
         # Forward pass
