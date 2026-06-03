@@ -1,21 +1,16 @@
-"""
-Implements the OTP-FM learning curriculum.
-
-Author(s): Raghav Kansal
-"""
+"""The OTP-FM training curriculum."""
 
 import math
 
 
 class Curriculum:
     """
-    OTP-FM learning curriculum.
+    OTP-FM training curriculum, see Sec. 4.3 of :cite:t:`kansal2026otpfm`.
 
     The ``alpha(i)`` parameter controls the transition from vanilla flow matching (``alpha(i)=0``)
     to full OTP-FM (``alpha(i)=1``) as a function of the training iteration ``i``.
 
-    We observe the sigmoid schedule most stable. The default hyperparameters are tuned for the W2Inf potential;
-    hyperparameters for other potentials can be found in the paper TODO.
+    We observe the sigmoid schedule to be most stable. The default hyperparameters are tuned for the W2Inf potential.
 
     Args:
         total_iterations: Total number of training iterations

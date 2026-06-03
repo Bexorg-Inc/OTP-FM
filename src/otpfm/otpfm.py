@@ -1,8 +1,4 @@
-"""
-Flow matching with optimal transport potentials (OTP-FM).
-
-Author(s): Raghav Kansal
-"""
+"""Flow matching with optimal transport potentials (OTP-FM)."""
 
 import logging
 from collections import OrderedDict
@@ -19,14 +15,15 @@ logger = logging.getLogger(__name__)
 
 class OTPFM(nn.Module):
     """
-    For training a given velocity predictor network v(x, t₁, t₂) with the OTP-FM algorithm, as well as sampling the trajectories.
+    Trains and samples a given velocity predictor network v(x, t₁, t₂) with the OTP-FM algorithm.
 
-    `forward_with_loss()` implements:
-     - Computing the base conditional velocity targets (as in vanilla conditional flow matching)
-     - Computing the OTP corrections to the targets, scaled according to the OTP-FM learning curriculum
-     - Computing the consistency training loss against the targets (MeanFlow by default)
+    ``forward_with_loss()`` implements:
 
-    `sample()` samples trajectories using the learnt consistency model.
+    - Computing the base conditional velocity targets (as in vanilla conditional flow matching)
+    - Computing the OTP corrections to the targets, scaled according to the OTP-FM learning curriculum
+    - Computing the consistency training loss against the targets (improved MeanFlow by default)
+
+    ``sample()`` samples trajectories using the learnt consistency model.
 
     Args:
         d (int): Dimension of the data.
@@ -152,7 +149,8 @@ class OTPFM(nn.Module):
         Precompute the time-dependent factors x_time_dep[i, j] for all pairs of potentials, used when calculating the OTP corrections.
         x_time_dep[i, j] = factor for potential j's contribution to position at t_i
 
-        If using the DirectSolver, also precomputes A[i,j] = x_time_dep[i,j] * strength[j] and (I - A)^{-1}.
+        If using the DirectSolver, also precomputes A[i,j] = x_time_dep[i,j] * strength[j] and (I - A)^{-1}
+        (Eq. 20 of :cite:t:`kansal2026otpfm`).
         """
         potentials_list = list(self.potentials.values())
         tks_list = list(self.potentials.keys())
@@ -197,10 +195,9 @@ class OTPFM(nn.Module):
             ema_param.mul_(self.ema_decay).add_(param.data, alpha=1 - self.ema_decay)
 
     def v_func(self, x, t1, t2, net=None):
-        """Mean predicted velocity. Implements either direct velocity prediction or x-prediction as in Refs. [6, 7].
-
-        [6]: Li and He (2025), "Back to Basics: Let Denoising Generative Models Denoise" (https://arxiv.org/abs/2511.13720)
-        [7]: Lu et. al. (2026), "One-step Latent-free Image Generation with Pixel Mean Flows" (https://arxiv.org/abs/2601.22158)
+        """Mean predicted velocity.
+        Implements either direct velocity prediction or x-prediction as in
+        :cite:t:`li2026basics,lu2026onestep`.
         """
         dt = t2 - t1
         if net is None:
@@ -300,10 +297,11 @@ class OTPFM(nn.Module):
         debug: bool = False,
     ) -> tuple[Tensor, Tensor, Tensor]:
         """
-        Solve the self-consistent equations for all X_tk simultaneously using a fixed-point solver.
+        Solve the self-consistent equations for all X_tk simultaneously using a fixed-point solver
+        (Eq. 18 of :cite:t:`kansal2026otpfm`).
 
         The coupled system is (for K potentials at times t_1, ..., t_K):
-            X(t_k) = X_base(t_k) + Σ_j x_time_dep_j(t_k) * dV_j(xm_j, X(t_j))
+        X(t_k) = X_base(t_k) + Σ_j x_time_dep_j(t_k) * dV_j(xm_j, X(t_j))
 
         Args:
             x0: Source samples, shape (bs, d)
@@ -426,7 +424,7 @@ class OTPFM(nn.Module):
         Forward pass with loss computation.
 
         Args:
-            xs (Tensor, shape (batch_size, num_marginals, *dim)): samples from each marginal
+            xs (Tensor, shape ``(batch_size, num_marginals, *dim)``): samples from each marginal
                 num_marginals = K + 2 where K is the number of intermediate marginals
                 xs[:, 0] = source samples (µ_0)
                 xs[:, 1:K+1] = intermediate marginal samples (µ_{t_k} for k=1,...,K)
@@ -513,16 +511,14 @@ class OTPFM(nn.Module):
 
     def meanflow_loss(self, X_t1, t1, t2, u_t1, v_func: callable, debug: bool = False) -> Tensor:
         """
-        Implements the MeanFlow loss from [2] but going forward in time instead of backwards (App. C.2 of [1]).
-
-        [1]: OTP-FM
-        [2]: Geng et. al. (2025), "Mean flows for one-step generative modeling", NeurIPS 2025 (https://arxiv.org/abs/2505.13447)
+        Implements the MeanFlow loss from :cite:t:`geng2025meanflow` but going forward in time
+        instead of backwards; see App. C.2 of :cite:t:`kansal2026otpfm`.
 
         Args:
-            X_t1 (Tensor, shape (batch_size, *dim)): position at time t1
-            t1 (Tensor, shape (batch_size)): start timepoint
-            t2 (Tensor, shape (batch_size)): end timepoint
-            u_t1 (Tensor, shape (batch_size, *dim)): instantaneous velocity to learn at time t1
+            X_t1 (Tensor, shape ``(batch_size, *dim)``): position at time t1
+            t1 (Tensor, shape ``(batch_size,)``): start timepoint
+            t2 (Tensor, shape ``(batch_size,)``): end timepoint
+            u_t1 (Tensor, shape ``(batch_size, *dim)``): instantaneous velocity to learn at time t1
         """
         ones = torch.ones_like(t1)
         zeros = torch.zeros_like(t1)
@@ -555,9 +551,8 @@ class OTPFM(nn.Module):
         self, X_t1, t1, t2, u_t1, v_func: callable, debug: bool = False, x_func: callable = None
     ) -> Tensor:
         """
-        Implements the Improved MeanFlow loss from Ref. [5].
-
-        [5]: Geng et. al. (2026), "Improved Mean Flows: On the Challenges of Fastforward Generative Models" (https://arxiv.org/abs/2512.02012)
+        Implements the Improved MeanFlow loss from :cite:t:`geng2026improved`,
+        going forward in time instead of backwards; see App. C.2 of :cite:t:`kansal2026otpfm`.
         """
         ones = torch.ones_like(t1)
         zeros = torch.zeros_like(t1)
@@ -600,10 +595,7 @@ class OTPFM(nn.Module):
 
     def lsd_loss(self, X_t1, t1, t2, u_t2, v_func: callable, debug: bool = False) -> Tensor:
         """
-        Implements the Lagrangian Self-Distillation loss from Ref. [3].
-
-        [3]: Boffi, Albergo, Vanden-Eijnden (2025), "How to build a consistency model: Learning flow maps via self-distillation",
-             NeurIPS 2025 (https://arxiv.org/abs/2505.18825)
+        Implements the Lagrangian Self-Distillation loss from :cite:t:`boffi2025buildconsistencymodel`.
         """
         ones = torch.ones_like(t1)
         zeros_t = torch.zeros_like(t1)
@@ -635,13 +627,11 @@ class OTPFM(nn.Module):
         Compute loss based on lossfn type.
 
         Implements:
-         - MSE loss
-         - Adaptive loss: divide MSE by [MSE ^ (adaptive_exp) + 1e-3]
-         - Weighted loss: EDM2-style *learned* loss attenuation [4]
-            L = MSE * exp(-log_var) + log_var
 
-        [4]: Karras et. al. (2024), "Analyzing and Improving the Training Dynamics of Diffusion Models",
-            CVPR 2024 (https://arxiv.org/abs/2312.02696)
+        - MSE loss
+        - Adaptive loss: divide MSE by [MSE ^ (adaptive_exp) + 1e-3]
+        - Weighted loss: EDM2-style *learned* loss weighting :cite:p:`karras2024analyzing`,
+          L = MSE * exp(-log_var) + log_var
 
         Args:
             y_pred: Predicted values

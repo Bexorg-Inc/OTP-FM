@@ -2,13 +2,12 @@
 Fixed-point solvers for the self-consistent X_tk equations in OTP-FM.
 
 Solvers:
-- DirectSolver: Direct solution for W2-based potentials.
-- PicardSolver: Simple Picard iteration.
-- AndersonSolver: Improves upon the simple Picard solver using Anderson acceleration.
-- AndersonSafe: Safeguarded Anderson acceleration with adaptive damping (default recommendation for non-W2 potentials).
-- AndersonHomotopy: Homotopy continuation with Anderson acceleration (can be helpful for high-strength potentials).
 
-Author(s): Raghav Kansal
+- :class:`DirectSolver`: Direct solution for W2-based potentials.
+- :class:`PicardSolver`: Simple Picard iteration.
+- :class:`AndersonSolver`: Improves upon the simple Picard solver using Anderson acceleration.
+- :class:`AndersonSafe`: Safeguarded Anderson acceleration with adaptive damping (default recommendation for non-W2 potentials).
+- :class:`AndersonHomotopy`: Homotopy continuation with Anderson acceleration (can be helpful for high-strength potentials).
 """
 
 import logging
@@ -28,7 +27,7 @@ class FixedPointSolver(ABC):
     """
     Base class for fixed-point solvers.
 
-    Solves the coupled system for K potentials:
+    Solves the coupled system for K potentials (Eq. 18 of :cite:t:`kansal2026otpfm`):
         X(t_i) = X_base(t_i) + Σ_j x_time_dep_j(t_i) * dV_j(xm_j, X(t_j))
     """
 
@@ -57,7 +56,7 @@ class FixedPointSolver(ABC):
         alpha: float = 1.0,  # Scaling factor for corrections (used in homotopy)
     ) -> tuple[Tensor, Tensor]:
         """
-        Fixed-point map G(X) for K potentials.
+        Fixed-point map G(X) for K potentials (Eq. 21 of :cite:t:`kansal2026otpfm`).
 
         G_i(X) = X_base_i + alpha * Σ_j x_time_dep[i,j] * dV_j
 
@@ -139,7 +138,7 @@ class FixedPointSolver(ABC):
 @dataclass
 class DirectSolver(FixedPointSolver):
     """
-    Direct solution for the linear gradients of W2 potentials.
+    Direct solution for the linear gradients of W2 potentials (Eq. 20 of :cite:t:`kansal2026otpfm`).
 
     The fixed-point equation:
         z_i = z_base_i + Σ_j x_time_dep[i,j] * w_j * (z_j - xm_j)

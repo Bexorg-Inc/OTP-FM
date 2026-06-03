@@ -1,6 +1,4 @@
-"""
-Classes for time-localized lambda functions λ_k(t) for OT potentials.
-"""
+"""Classes for time-localized lambda functions λ_k(t) for OT potentials."""
 
 from abc import ABC, abstractmethod
 
@@ -9,7 +7,7 @@ from torch import Tensor
 
 
 class LambdaFunction(ABC):
-    """Abstract base class for time-localized lambda functions λ_k(t).
+    """Abstract base class for time-localized lambda functions λ_k(t) (Eq. 10 of :cite:t:`kansal2026otpfm`).
 
     Args:
         tk (float): central time.
@@ -155,8 +153,8 @@ class GaussianLambda(LambdaFunction):
 
 class TriangleLambda(LambdaFunction):
     """
-    Implements Triangle lambda centered at `tk` with half-width `width`.
-    λ(t) = (1 - |t - tk| / h) / h  for |t - tk| < h, else 0.
+    Implements Triangle lambda centered at ``tk`` with half-width ``width``.
+    ``λ(t) = (1 - |t - tk| / h) / h`` for ``|t - tk| < h``, else 0.
     """
 
     def _precompute_special_values(self):
@@ -264,8 +262,8 @@ class TriangleLambda(LambdaFunction):
 
 class BoxLambda(LambdaFunction):
     """
-    Implements Box function: constant within `[tk - width, tk + width]`, 0 outside.
-    λ(t) = 1/(2h) for |t - tk| <= h, else 0.
+    Implements Box function: constant within ``[tk - width, tk + width]``, 0 outside.
+    ``λ(t) = 1/(2h)`` for ``|t - tk| <= h``, else 0.
     """
 
     def _precompute_special_values(self):

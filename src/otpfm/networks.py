@@ -1,8 +1,4 @@
-"""
-Implements a simple MLP (FlowNetMLP) with optional residual connections for velocity prediction.
-
-Author(s): Raghav Kansal
-"""
+"""A simple MLP :class:`FlowNetMLP` with optional residual connections for velocity prediction."""
 
 import copy
 
@@ -250,14 +246,14 @@ class FlowNetMLP(nn.Module):
     def forward(self, x, t, dt):
         """
         Args:
-            x (Tensor, shape (bs, *dim)): positions at time t
-            t (Tensor, shape (bs)): timepoints
-            dt (Tensor, shape (bs)): time differences with respect to t
+            x (Tensor, shape ``(bs, *dim)``): positions at time t
+            t (Tensor, shape ``(bs,)``): timepoints
+            dt (Tensor, shape ``(bs,)``): time differences with respect to t
 
         Returns:
-            v (Tensor, shape (bs, 2 * d)): base velocity and correction to the base velocity
-                v[:, :d] is the base velocity
-                v[:, d:] is the correction velocity
+            v (Tensor, shape ``(bs, 2 * d)``): base velocity and correction to the base velocity
+                ``v[:, :d]`` is the base velocity
+                ``v[:, d:]`` is the correction velocity
         """
         x_emb = self.x_emb(x)
         t_emb = self.t_pos_emb(t.view(-1))
@@ -269,8 +265,7 @@ class FlowNetMLP(nn.Module):
 
     def get_log_var(self, t, dt):
         """
-        Predict log variance for EDM2-style loss attenuation.
-        Independent of position x, only depends on timestep.
+        Predict log variance for EDM2-style loss weighting :cite:p:`karras2024analyzing`.
 
         Args:
             t (Tensor, shape (bs,)): timepoints
