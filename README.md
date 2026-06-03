@@ -1,10 +1,12 @@
-<!-- <p align="center">
-    <img src="media/method_overview.png" alt="Method Overview"/>
-</p> -->
+<!-- docs-banner-start -->
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Bexorg-Inc/OTP-FM/main/docs/_static/method_overview.png" alt="OTP-FM method overview" width="800"/>
+</p>
 
 <p align="center">
 <b>OTP-FM: Multimarginal flow matching (FM) with optimal transport potentials (OTP) (ICML 2026)</b>
 </p>
+<!-- docs-banner-end -->
 
 ---
 
@@ -15,7 +17,7 @@
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick start</a> •
   <a href="#tutorials">Tutorials</a> •
-  <a href="#documentation">Documentation</a> •
+  <a href="https://otp-fm.readthedocs.io">Documentation</a> •
   <a href="#citation">Citation</a>
 </p>
 
@@ -25,10 +27,10 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/Bexorg-Inc/OTP-FM/actions/workflows/ci.yml/badge.svg)](https://github.com/Bexorg-Inc/OTP-FM/actions/workflows/ci.yml)
-[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Bexorg-Inc/OTP-FM/badges/coverage-badge.json)](https://github.com/Bexorg-Inc/OTP-FM/actions/workflows/ci.yml)
+[![Documentation Status](https://readthedocs.org/projects/otp-fm/badge/?version=latest)](https://otp-fm.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Bexorg-Inc/OTP-FM/badges/coverage-badge.json)](https://github.com/Bexorg-Inc/OTP-FM/actions/workflows/ci.yml)
 
 A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials". Includes code for reproducing [Kansal et. al., ICML 2026]().
 

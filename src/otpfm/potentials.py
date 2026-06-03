@@ -1,15 +1,14 @@
 """
-Potentials for OTP-FM. Each potential is based on a distance metric D(ρ, μ) between the learned marginal ρ and the target μ.
+Potentials for OTP-FM. Each potential is based on a distance metric 𝐷(ρ, μ) between the learned marginal ρ and the target μ.
 
 Implements:
-- W2InfPotential: Random coupling between samples, fastest and default recommendation.
-- W2Potential: Exact Wasserstein-2 (requires pot package)
-- MMDRBFPotential: MMD with RBF kernel
-- KLPotential: KL divergence with score estimation
-- MMDPolyPotential: MMD with polynomial kernel (not successful in experiments)
-- EntropicW2Potential: Entropic Wasserstein-2 (requires pot package, not a significant speed-up over regular W2Potential)
 
-Author(s): Raghav Kansal
+- :class:`W2InfPotential`: Random coupling between samples, fastest and default recommendation.
+- :class:`W2Potential`: Exact Wasserstein-2 (requires ``pot`` package).
+- :class:`MMDRBFPotential`: MMD with RBF kernel.
+- :class:`KLPotential`: KL divergence with score estimation.
+- :class:`MMDPolyPotential`: MMD with polynomial kernel (not successful in experiments).
+- :class:`EntropicW2Potential`: Entropic Wasserstein-2 (requires ``pot`` package, not a significant speed-up over regular :class:`W2Potential`).
 """
 
 import warnings
@@ -74,28 +73,28 @@ class Potential(ABC):
     @abstractmethod
     def grad_gk(self, x_true: Tensor, X_tk: Tensor) -> Tensor:
         """
-        ∇g_k(X_tk, tk), where g_k = δD/δρ, see Eq. XYZ in TODO.
+        ∇g_k(X_tk, tk), where g_k = δD/δρ, see Thm. 3.2 and Table 1 of :cite:t:`kansal2026otpfm`.
         Must be implemented by subclasses.
 
         Args:
-            x_true: samples from true intermediate marginal, shape (batch_size, *dim)
-            X_tk: predicted samples from learnt path at time tk, shape (batch_size, *dim)
+            x_true: samples from true intermediate marginal, shape ``(batch_size, *dim)``
+            X_tk: predicted samples from learnt path at time tk, shape ``(batch_size, *dim)``
 
         Returns:
-            ∇g_k(X_tk, tk), shape (batch_size, *dim)
+            ∇g_k(X_tk, tk), shape ``(batch_size, *dim)``
         """
         pass
 
     def dV_tk(self, x_true: Tensor, X_tk: Tensor) -> Tensor:
         """
-        δV/δρ evaluated at central time tk, see Eq. XYZ in TODO.
+        δV/δρ evaluated at central time tk.
 
         Args:
-            x_true: samples from true intermediate marginal, shape (batch_size, *dim)
-            X_tk: predicted samples from learnt path at time tk, shape (batch_size, *dim)
+            x_true: samples from true intermediate marginal, shape ``(batch_size, *dim)``
+            X_tk: predicted samples from learnt path at time tk, shape ``(batch_size, *dim)``
 
         Returns:
-            strength * grad_gk, shape (batch_size, *dim)
+            strength * grad_gk, shape ``(batch_size, *dim)``
         """
         return self.strength * self.grad_gk(x_true, X_tk)
 
@@ -117,7 +116,7 @@ class W2InfPotential(Potential):
 class W2Potential(Potential):
     """
     Wasserstein-2 distance potential.
-    ∇g_k is X - T(X), where T is the OT plan (Table 1 of TODO).
+    ∇g_k is X - T(X), where T is the OT plan.
 
     Note: Requires the `pot` package for optimal transport computation, which will be slow.
     We recommend using W2InfPotential with pre-computed OT alignments or random couplings for most applications.
@@ -481,7 +480,7 @@ class KLPotential(Potential):
 
     def _fast_1d_kde_score(self, x: Tensor, samples: Tensor) -> Tensor:
         """
-        FAST vectorized 1D KDE score estimation using k-nearest neighbors.
+        Fast vectorized 1D KDE score estimation using k-nearest neighbors.
 
         Instead of full O(N*M) KDE, uses O(N*K) computation with K nearest neighbors.
         For 1D, we can find K-NN efficiently using sorting.
@@ -611,14 +610,12 @@ class KLPotential(Potential):
 
     def _ssge_score(self, x: Tensor, p_samples: Tensor, leave_one_out: bool = False) -> Tensor:
         """
-        Spectral Stein Gradient Estimator (SSGE) for score estimation.
+        Spectral Stein Gradient Estimator (SSGE) for score estimation :cite:p:`shi2018ssge`.
 
         Based on the Stein identity: E_p[s(x)k(x,y) + ∇_x k(x,y)] = 0
 
         This method in theory can capture higher-order moments better than simple KDE because
         it uses the Stein identity to constrain the score estimate, rather than smoothing the empirical distribution.
-
-        Reference: "A Spectral Approach to Gradient Estimation for Implicit Distributions", Shi et al., ICML 2018
 
         Args:
             x: Query points (N, D)
