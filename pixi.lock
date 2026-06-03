@@ -3013,8 +3013,8 @@ packages:
   timestamp: 1763125014948
 - pypi: ./
   name: otpfm
-  version: 0.1.1.dev55
-  sha256: 392a56972bdae7b4e8e3436395784d999b0db202df8e9f60c6cb1ff96d073ca2
+  version: 0.1.1.dev56
+  sha256: f1eca3e44fe5e6309bbd236efdc87d7e537dd04ffb80105ca1ccb9cb56ea2b71
   requires_dist:
   - numpy>=1.20
   - torch>=2.0
