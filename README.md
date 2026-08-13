@@ -11,7 +11,7 @@
 ---
 
 <p align="center">
-  <a href="#overview">Paper</a> •
+  <a href="https://arxiv.org/abs/2606.05327">Paper</a> •
   <a href="#overview">Overview</a> •
   <a href="#why-otp-fm">Why OTP-FM?</a> •
   <a href="#installation">Installation</a> •
