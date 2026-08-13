@@ -32,7 +32,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Bexorg-Inc/OTP-FM/badges/coverage-badge.json)](https://github.com/Bexorg-Inc/OTP-FM/actions/workflows/ci.yml)
 
-A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials". Includes code for reproducing [Kansal et. al., ICML 2026]().
+A PyTorch library for training flow matching models with intermediate marginal constraints enforced using "optimal transport potentials". Includes code for reproducing [Kansal et. al., ICML 2026](https://arxiv.org/abs/2606.05327).
 
 ## Overview
 
@@ -40,10 +40,10 @@ OTP-FM extends vanilla conditional flow matching (CFM) between endpoint marginal
 We do so by modifying the **dynamic optimal transport** problem to incorporate **potential energy** terms corresponding to these intermediate marginals and updating the CFM targets based on the resulting dynamics.
 
 ## Why OTP-FM?
- - Flexibility in the choice of potentials and temporal dynamics
- - Efficient training for a variety of potentials; in particular, linear time training with the $\mathcal W_2^\infty$ (`W2Inf`) potential
- - Stable training using the OTPFM curriculum
- - SOTA results in multimarginal inference tasks
+ - 🎨 Flexibility in the choice of potentials and temporal dynamics
+ - 🚀 SOTA efficiency in training for a variety of potentials; in particular, linear time training with the $\mathcal W_2^\infty$ (`W2Inf`) potential
+ - 🎯 Stable training using the OTPFM curriculum
+ - 🏆 SOTA results in multimarginal inference tasks on diverse real-world datasets
 
 Check out [Quick Start](#quick-start) and [Tutorials](#tutorials) to see it in action.
 
@@ -55,19 +55,14 @@ Check out [Quick Start](#quick-start) and [Tutorials](#tutorials) to see it in a
 # Core package
 pip install otpfm
 
-# With W2Potential support (requires POT library)
-pip install otpfm[w2]
+# With W2Potential support (requires POT library, not recommended unless you wish to experiment with minibatch-OT)
+pip install "otpfm[w2]"
 ```
 
 ### To run experiments or develop (pixi)
 
-[Pixi](https://pixi.sh) is a fast conda-like package manager. Install it first:
-
-```bash
-curl -sSf https://pixi.sh/install.sh | bash
-```
-
-Then set up the environment:
+[Pixi](https://pixi.sh) is a fast conda-like package manager.
+After [installing](https://pixi.prefix.dev/latest/#installation), set up the environment:
 
 ```bash
 git clone https://github.com/Bexorg-Inc/OTP-FM.git
@@ -206,13 +201,20 @@ model = OTPFM(
 
 ## Citation
 
-If you use this code in your research, please cite:
+If you find this code helpful in your research, please consider citing:
 
-```
-Coming soon.
+```tex
+@inproceedings{kansal2026multimarginal,
+    title={Multimarginal flow matching with optimal transport potentials},
+    author={Raghav Kansal and David Crair and Nghia Nguyen and Scott Pope and Bradley Parry},
+    booktitle={Forty-third International Conference on Machine Learning},
+    year={2026},
+    eprint={2606.05327},
+    url={https://arxiv.org/abs/2606.05327},
+}
 ```
 
 ## Reproducing Experiments
 
 For reproducing OTP-FM experiments from the ICML paper, see [REPRODUCIBILITY.md](REPRODUCIBILITY.md).
-For details on our benchmarking of previous methods, see https://github.com/rkansal47/OTP-FM-benchmarking.
+For details about our benchmarking of previous methods, see [OTP-FM-benchmarking](https://github.com/rkansal47/OTP-FM-benchmarking).
